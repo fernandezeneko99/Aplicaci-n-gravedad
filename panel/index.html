@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gravedad</title><link rel="stylesheet" href="style.css?v=0.6.2"></head><body>
+<main>
+<header class="top">
+ <button id="apple" aria-label="Activar Gravedad" aria-pressed="false" title="Activa o desactiva la física. Clic derecho para recargar el panel."><img src="assets/logo.svg" alt=""><span id="power">Apagada</span></button>
+ <section class="world" aria-label="Mundo">
+  <label class="switch" title="Tierra: gravedad terrestre. Espacio: sin gravedad; las fuerzas siguen activas."><input id="environment" type="checkbox" role="switch" aria-label="Espacio sin gravedad"><span class="side off"><img src="assets/earth.svg" alt=""><span>Tierra</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/space.svg" alt=""><span>Espacio</span></span></label>
+  <label class="switch" title="Paredes: los bordes de la composición contienen los objetos. Sin paredes: caen fuera."><input id="walls" type="checkbox" role="switch" aria-label="Bordes de la composición como paredes"><span class="side off"><img src="assets/open.svg" alt=""><span>Sin paredes</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/walls.svg" alt=""><span>Paredes</span></span></label>
+ </section>
+</header>
+<div class="cards">
+ <button id="dynamic" title="Aplica física a las capas seleccionadas. El contorno se detecta automáticamente."><img class="art" src="assets/dynamic.svg" alt=""><strong>Dinámico</strong></button>
+ <button id="force" title="Crea un ventilador para toda la composición. Gira el nulo para cambiar la dirección; ajusta la Intensidad en Control de efectos."><img class="art" src="assets/force.svg" alt=""><strong>Fuerza</strong></button>
+ <button id="fixed" title="Aplica colisión fija. Si la capa está animada seguirá tu animación."><img class="art" src="assets/fixed.svg" alt=""><strong>Fijo</strong></button>
+ <button id="particles" title="Crea un emisor de partículas de ejemplo. Si seleccionas un nulo o una capa, se usan como emisor y como forma."><img class="art" src="assets/particles.svg" alt=""><strong>Partículas</strong></button>
+</div>
+<button id="bake" title="Calcula la simulación completa una vez y la guarda. Después la reproducción es instantánea. En escenas grandes la física solo se muestra horneada."><img class="art" src="assets/bake.svg" alt=""><span class="bake-text"><strong>Hornear <span id="bakeState">· sin hornear</span></strong><span class="meter"><span id="progress"></span></span></span></button>
+<p id="status" role="status">Selecciona capas en After para empezar.</p><small class="version">Gravedad · 0.6.2 alpha</small>
+</main><script src="app.js?v=0.6.2"></script></body></html>

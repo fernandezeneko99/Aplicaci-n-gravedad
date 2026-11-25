@@ -1,0 +1,60 @@
+/* Every size is in rem and the root follows the panel width, so the whole interface scales with the extension. */
+:root{color-scheme:dark;--ink:#302735;--paper:#0d0c10;--text:#f4eff7;--muted:#a79fb0;--line:.16rem;--lift:#000}
+html{font-size:clamp(11px,3.3vw,24px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--text);font:1rem/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1.4rem 1.2rem}
+button{font:inherit;color:var(--ink);cursor:pointer;border:var(--line) solid var(--ink);border-radius:1.2rem;box-shadow:0 .3rem #3d3546;transition:transform .12s,box-shadow .12s}
+button:hover{transform:translateY(-.12rem)}
+button:active{transform:translateY(.2rem);box-shadow:0 .08rem #3d3546}
+button:focus-visible,.switch input:focus-visible~.track{outline:.2rem solid #a598e6;outline-offset:.3rem}
+button:disabled{opacity:.6;cursor:wait}
+img{display:block}
+
+.top{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:1.2rem;margin-bottom:1.5rem}
+#apple{width:7.4rem;padding:.55rem .6rem .45rem;background:#e5dfed}
+#apple img{width:100%;height:auto;filter:grayscale(1);transform:rotate(6deg);transition:.2s}
+#apple[aria-pressed=true]{background:#ffbecb}
+#apple[aria-pressed=true] img{filter:none;transform:rotate(-10deg)}
+#power{display:block;font-size:.85rem;font-weight:700;margin-top:.15rem}
+
+.world{display:grid;gap:.9rem;justify-content:end}
+.switch{display:grid;grid-template-columns:5rem 3.3rem 5rem;align-items:start;justify-items:center;column-gap:.3rem;cursor:pointer;position:relative}
+.switch input{position:absolute;width:1px;height:1px;opacity:0}
+.side{display:flex;flex-direction:column;align-items:center;gap:.2rem;font-size:.72rem;font-weight:650;color:var(--text);text-align:center;line-height:1.1;white-space:nowrap;transition:opacity .2s}
+.side img{width:2.6rem;height:2.6rem}
+.side.off{grid-column:1}.track{grid-column:2}.side.on{grid-column:3}
+.switch input:checked~.side.off,.switch input:not(:checked)~.side.on{opacity:.45}
+.track{display:block;width:3.3rem;height:1.95rem;margin-top:.33rem;border:var(--line) solid #3d3546;border-radius:1rem;background:#bee7d5}
+.track span{display:block;width:1.3rem;height:1.3rem;margin:.17rem;border-radius:50%;background:#fff8ef;border:.12rem solid var(--ink);transition:transform .2s}
+.switch input:checked~.track span{transform:translateX(1.35rem)}
+#environment:checked~.track{background:#c6b1ef}
+#walls~.track{background:#ffe0bd}
+#walls:checked~.track{background:#f5c58a}
+
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}
+.cards button{display:flex;flex-direction:column;align-items:center;padding:.65rem .3rem .8rem;background:#d3c6f7}
+.cards #force{background:#ffdfa6}
+.cards #fixed{background:#bde6ce}
+.cards #particles{background:#ffd0e0}
+.art{width:min(100%,6rem);height:auto;aspect-ratio:1}
+.cards strong{display:block;font-size:.92rem;margin-top:.25rem;white-space:nowrap}
+.cards button:hover .art{transform:rotate(-4deg) scale(1.04);transition:transform .2s}
+
+#bake{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.9rem;width:100%;margin-top:1rem;padding:.55rem 1.1rem;background:#ffc9b0;text-align:left}
+#bake .art{width:3.7rem}
+#bake strong{display:block;font-size:1rem}
+.meter{display:block;height:.75rem;margin-top:.35rem;border:.12rem solid var(--ink);border-radius:.5rem;background:#fff8ef;overflow:hidden}
+#progress{display:block;height:100%;width:0;background:#e9806a;transition:width .3s}
+#bake.baked{background:#c8eac0}
+#bake.baked #progress{background:#6fbf73}
+
+#bakeState{font-weight:600;font-size:.82rem;color:#7a5146}
+#status{font-size:.9rem;line-height:1.5;color:var(--muted);margin:1.1rem 0 .6rem;padding:.55rem .8rem;border-radius:.8rem;min-height:3.3rem;overflow-wrap:anywhere;transition:background .15s}
+#status.hint{background:#211e27;color:var(--text)}
+#status.error{color:#ff8fa6}
+.version{display:block;color:#6f6778;font-size:.7rem}
+
+/* Narrow panels: two cards per row; very narrow: the world switches go under the apple. */
+@media (max-width:330px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:270px){.top{grid-template-columns:1fr;justify-items:center}.world{justify-content:center}}
