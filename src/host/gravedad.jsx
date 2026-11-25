@@ -1030,19 +1030,21 @@ var Gravedad = (function () {
   function clear() {
     var c = comp();
     return undo('Gravedad \u00b7 Borrar simulaci\u00f3n', function () {
-      var cleared = 0, removed = removeParticles(c), store = readStore(c), legacy = legacyIds(c), skipped = [];
+      var cleared = 0, removed = removeParticles(c), store = readStore(c), legacy = legacyIds(c), skipped = [], restored = {};
+      // Nombre con numero de capa: las capas duplicadas suelen llamarse igual.
+      var label = function (x) { return x.name + ' (capa ' + x.index + ')'; };
       for (var id in store.layers) {
         if (!store.layers.hasOwnProperty(id)) continue;
         var l = layerById(c, id);
         if (!l) { delete store.layers[id]; continue; }
-        if (unlocked(l, function () { return settleLayer(l, c, store, 'restore'); })) cleared++;
+        if (unlocked(l, function () { return settleLayer(l, c, store, 'restore'); })) { cleared++; restored[id] = true; }
       }
       // Proyectos de la 1.1.1: sin registro no se puede distinguir; no se borra a ciegas.
-      for (var lid in legacy) if (legacy.hasOwnProperty(lid)) { var ll = layerById(c, lid); if (ll && motionProps(ll)[0].numKeys) skipped.push(ll.name); }
+      for (var lid in legacy) if (legacy.hasOwnProperty(lid) && !restored[lid]) { var ll = layerById(c, lid); if (ll && motionProps(ll)[0].numKeys) skipped.push(label(ll)); }
       // Dinamicas con claves pero sin registro (nulo de mundo borrado, capa duplicada...): tampoco se tocan.
       for (var n = 1; n <= c.numLayers; n++) {
         var dl = c.layer(n);
-        if (store.layers[String(dl.id)] === undefined && !legacy[String(dl.id)] && isBody(dl) && bodyType(dl) === 'dynamic' && (motionProps(dl)[0].numKeys > 1 || motionProps(dl)[motionProps(dl).length - 1].numKeys > 1)) skipped.push(dl.name);
+        if (!restored[String(dl.id)] && store.layers[String(dl.id)] === undefined && !legacy[String(dl.id)] && isBody(dl) && bodyType(dl) === 'dynamic' && (motionProps(dl)[0].numKeys > 1 || motionProps(dl)[motionProps(dl).length - 1].numKeys > 1)) skipped.push(label(dl));
       }
       writeStore(c, store);
       var w0 = find(c, TAG.world);

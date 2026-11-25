@@ -29,6 +29,21 @@
     }
   }
 
+  // F6: dos cuerpos con la misma forma que empiezan en la misma pose (una capa duplicada sin mover) son dos cuerpos,
+  // pero sin dirección en la que separarse: caen como uno solo. No se cambia la composición; se avisa con el número de capa.
+  function coincident(host, scene) {
+    var seen = {}, out = [], byId = {};
+    host.bodies.forEach(function (b) { byId[b.id] = b; });
+    scene.bodies.forEach(function (b) {
+      var src = byId[b.id];
+      if (!src || b.type === 'static') return;
+      var key = [Math.round(b.pose.x * 2), Math.round(b.pose.y * 2), Math.round((b.pose.a || 0) * 2), b.spawn || 0, JSON.stringify(b.shape, function (k, v) { return typeof v === 'number' ? Math.round(v * 10) / 10 : v; })].join('|');
+      if (seen[key]) out.push('«' + seen[key].name + '» (capa ' + seen[key].index + ') y «' + src.name + '» (capa ' + src.index + ') empiezan en el mismo sitio con la misma forma: se moverán como un solo cuerpo. Mueve una de ellas antes de simular.');
+      else seen[key] = src;
+    });
+    return out;
+  }
+
   function describeWarning(w, names) {
     var who = names[w.id] || 'Una capa';
     if (w.code === 'sin-forma') return who + ': su contorno es demasiado pequeño para colisionar; se ignora.';
@@ -70,7 +85,9 @@
     if (samples > 4e6) throw Error('Escena demasiado grande: ' + bodiesTotal + ' cuerpos × ' + host.frames + ' fotogramas. Acorta el área de trabajo, baja el Máximo de partículas o divide la escena en varias composiciones.');
     if (bodiesTotal > 600) warnings.push(bodiesTotal + ' cuerpos: la simulación y la escritura de claves pueden tardar. El medidor muestra el tiempo restante y puedes cancelar.');
     // Por tramos de tiempo (no de fotogramas): el panel y After siguen respondiendo aunque la escena sea enorme.
-    var scene = Scene.build(host), run = Sim.create(scene), state, began = now(), budget = io.budget || 25;
+    var scene = Scene.build(host);
+    coincident(host, scene).forEach(function (w) { warnings.push(w); });
+    var run = Sim.create(scene), state, began = now(), budget = io.budget || 25;
     io.progress(0.05, 'Simulando…', { phase: 'simular', frame: 0, frames: scene.frames });
     do {
       if (io.cancelled && io.cancelled()) throw Error('Simulación cancelada. Las capas no se han modificado.');

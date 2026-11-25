@@ -197,7 +197,7 @@ test('F1 · proyecto de la 1.1.1 (solo lista de ids): no se borran claves a cieg
   w.property('ADBE Marker').keys = []; w.comment = 'gravedad:mundo;ids=' + B.id;
   const n = B.transform.position.numKeys, r = ok(h.call('clear'));
   assert.strictEqual(B.transform.position.numKeys, n);
-  assert.ok(r.legacy.includes('B'));
+  assert.ok(r.legacy.some((x) => /^B \(capa \d+\)$/.test(x)), JSON.stringify(r.legacy));
 });
 test('F1 · capa con padre: Desactivado recupera el padre y sus valores originales sin saltos', async () => {
   const { h, c } = setup();
