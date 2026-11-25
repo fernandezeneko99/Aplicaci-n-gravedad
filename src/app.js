@@ -125,7 +125,8 @@
     var stale = !!(sim && (sim.stale || !sameRange));
     if (!simulating) {
       meter.set({ frames: c.frames, first: first, simulated: sim ? Math.min(sim.frames, c.frames) : 0, stale: stale, running: null });
-      $('simState').textContent = !sim ? 'Área de trabajo · ' + plural(c.frames, 'fotograma', 'fotogramas') : stale ? 'Desactualizada: la escena cambió, vuelve a simular' : 'Simulada a las ' + sim.date + ' · al día';
+      var pending = data.pendingTypes || [];
+      $('simState').textContent = pending.length ? 'Tipo cambiado en ' + pending.join(', ') + ': se aplica al simular o borrar' : !sim ? 'Área de trabajo · ' + plural(c.frames, 'fotograma', 'fotogramas') : stale ? 'Desactualizada: la escena cambió, vuelve a simular' : 'Simulada a las ' + sim.date + ' · al día';
       $('simulate').classList.toggle('done', !!sim && !stale);
       $('simulate').classList.toggle('stale', stale);
       $('meterInfo').textContent = secs(c.duration) + ' · ' + plural(c.frames, 'fotograma', 'fotogramas');
@@ -226,6 +227,7 @@
   $('clear').onclick = function () {
     run(async function () {
       var d = await call('clear'); render(d); last = null; showViewer(false); meter.set({ contacts: [] });
+      if (d.legacy && d.legacy.length) warnings(['Sin datos para distinguir sus claves de las tuyas (versión anterior, capa duplicada o nulo de mundo borrado); no se han tocado: ' + d.legacy.join(', ') + '. Usa Ctrl/Cmd+Z o bórralas a mano.']);
       status(d.cleared || d.removed ? 'Simulación borrada: ' + plural(d.cleared, 'capa', 'capas') + ' en su pose de partida' + (d.removed ? ' y ' + plural(d.removed, 'partícula eliminada', 'partículas eliminadas') : '') + '.' : 'No había simulación que borrar.', 'ok');
     });
   };

@@ -10,6 +10,9 @@ let nextId = 1;
 const lerp = (a, b, f) => Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * f) : a + (b - a) * f;
 const clone = (v) => Array.isArray(v) ? v.map(clone) : (v && typeof v === 'object' && v.vertices ? Object.assign(new Shape(), JSON.parse(JSON.stringify(v))) : v);
 
+const KeyframeInterpolationType = { LINEAR: 6612, BEZIER: 6613, HOLD: 6614 };
+class KeyframeEase { constructor(speed, influence) { this.speed = speed; this.influence = influence; } }
+function defaultKeyAttrs(p) { const dims = Array.isArray(p._value) && !p.isSpatial ? p._value.length : 1; const e = () => Array.from({ length: dims }, () => ({ speed: 0, influence: 16.666666667 })); return { inI: KeyframeInterpolationType.LINEAR, outI: KeyframeInterpolationType.LINEAR, inE: e(), outE: e(), inT: p.isSpatial ? [0, 0] : null, outT: p.isSpatial ? [0, 0] : null, sAuto: false, sCont: false, tAuto: false, tCont: false, rov: false }; }
 class Shape { constructor() { this.vertices = []; this.inTangents = []; this.outTangents = []; this.closed = true; } }
 
 // After no deja modificar nada de una capa bloqueada.
@@ -27,6 +30,21 @@ class Property extends PropertyBase {
   get numKeys() { return this.keys.length; }
   keyTime(i) { if (i < 1 || i > this.keys.length) throw Error('key index'); return this.keys[i - 1].t; }
   keyValue(i) { return clone(this.keys[i - 1].v); }
+  // Interpolación, suavizado y tangentes por clave (lo que la restauración de claves originales debe conservar).
+  get isSpatial() { return /^ADBE Position$|^ADBE Anchor Point$/.test(this.matchName); }
+  _k(i) { if (i < 1 || i > this.keys.length) throw Error('índice de clave fuera de rango ' + i); const k = this.keys[i - 1]; if (!k.a) k.a = defaultKeyAttrs(this); return k.a; }
+  nearestKeyIndex(t) { let best = 1, d = Infinity; this.keys.forEach((k, i) => { if (Math.abs(k.t - t) < d) { d = Math.abs(k.t - t); best = i + 1; } }); return best; }
+  keyInInterpolationType(i) { return this._k(i).inI; } keyOutInterpolationType(i) { return this._k(i).outI; }
+  setInterpolationTypeAtKey(i, a, b) { guard(this); const k = this._k(i); k.inI = a; k.outI = b === undefined ? a : b; }
+  keyInTemporalEase(i) { return clone(this._k(i).inE); } keyOutTemporalEase(i) { return clone(this._k(i).outE); }
+  setTemporalEaseAtKey(i, a, b) { guard(this); const k = this._k(i); k.inE = a.map((e) => ({ speed: e.speed, influence: e.influence })); k.outE = (b || a).map((e) => ({ speed: e.speed, influence: e.influence })); }
+  keyInSpatialTangent(i) { if (!this.isSpatial) throw Error('no espacial'); return clone(this._k(i).inT); } keyOutSpatialTangent(i) { if (!this.isSpatial) throw Error('no espacial'); return clone(this._k(i).outT); }
+  setSpatialTangentsAtKey(i, a, b) { guard(this); if (!this.isSpatial) throw Error('no espacial'); const k = this._k(i); k.inT = clone(a); k.outT = clone(b); }
+  keySpatialAutoBezier(i) { return this._k(i).sAuto; } setSpatialAutoBezierAtKey(i, v) { guard(this); this._k(i).sAuto = !!v; }
+  keySpatialContinuous(i) { return this._k(i).sCont; } setSpatialContinuousAtKey(i, v) { guard(this); this._k(i).sCont = !!v; }
+  keyTemporalAutoBezier(i) { return this._k(i).tAuto; } setTemporalAutoBezierAtKey(i, v) { guard(this); this._k(i).tAuto = !!v; }
+  keyTemporalContinuous(i) { return this._k(i).tCont; } setTemporalContinuousAtKey(i, v) { guard(this); this._k(i).tCont = !!v; }
+  keyRoving(i) { return this._k(i).rov; } setRovingAtKey(i, v) { guard(this); this._k(i).rov = !!v; }
   valueAtTime(t) {
     if (this._layerRef !== undefined) return this._layerRef && !this._layerRef.removed ? this._layerRef.index : 0;
     if (this.expressionEnabled && this.expressionFn) return this.expressionFn(t);
@@ -34,7 +52,7 @@ class Property extends PropertyBase {
     if (!k.length) return clone(this._value);
     if (t <= k[0].t) return clone(k[0].v);
     if (t >= k[k.length - 1].t) return clone(k[k.length - 1].v);
-    for (let i = 0; i < k.length - 1; i++) if (t >= k[i].t && t <= k[i + 1].t) { if (typeof k[i].v === 'object' && !Array.isArray(k[i].v)) return clone(k[i].v); return lerp(k[i].v, k[i + 1].v, (t - k[i].t) / (k[i + 1].t - k[i].t)); }
+    for (let i = 0; i < k.length - 1; i++) if (t >= k[i].t && t <= k[i + 1].t) { if ((typeof k[i].v === 'object' && !Array.isArray(k[i].v)) || (k[i].a && k[i].a.outI === KeyframeInterpolationType.HOLD && t < k[i + 1].t)) return clone(k[i].v); return lerp(k[i].v, k[i + 1].v, (t - k[i].t) / (k[i + 1].t - k[i].t)); }
   }
   setValue(v) {
     guard(this);
@@ -45,7 +63,7 @@ class Property extends PropertyBase {
   _check(v) { if (Array.isArray(this._value) && (!Array.isArray(v) || v.some((x) => typeof x !== 'number' || !isFinite(x)))) throw Error(this.name + ': valor no válido ' + JSON.stringify(v)); if (typeof this._value === 'number' && (typeof v !== 'number' || !isFinite(v))) throw Error(this.name + ': valor no válido ' + v); }
   setValueAtTime(t, v) { guard(this); this._check(v); const i = this.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6); if (i >= 0) this.keys[i].v = clone(v); else { this.keys.push({ t, v: clone(v) }); this.keys.sort((a, b) => a.t - b.t); } }
   setValuesAtTimes(ts, vs) { if (ts.length !== vs.length) throw Error('longitudes distintas'); MockAE.stats.setValuesAtTimes++; for (let i = 0; i < ts.length; i++) this.setValueAtTime(ts[i], vs[i]); }
-  removeKey(i) { guard(this); if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); MockAE.stats.removeKey = (MockAE.stats.removeKey || 0) + 1; this.keys.splice(i - 1, 1); }
+  removeKey(i) { guard(this); if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); if (this.matchName !== 'ADBE Marker') MockAE.stats.removeKey = (MockAE.stats.removeKey || 0) + 1; this.keys.splice(i - 1, 1); }
   get dimensionsSeparated() { return this.dimensionsSeparatedValue; }
   set dimensionsSeparated(v) { this.dimensionsSeparatedValue = v; }
   setPropertyParameters(items) { if (MockAE.failDropdown) throw Error('No se puede'); if (this.matchName !== 'ADBE Dropdown Control-0001') throw Error('no es menú'); this.items = items; return this; }
@@ -125,7 +143,15 @@ class Layer {
     let rot = 0, sx = 1, sy = 1, l = this;
     while (l) { const lt = l.property('ADBE Transform Group'); rot += lt.property('ADBE Rotate Z').valueAtTime(t); if (l !== this) { const s = lt.property('ADBE Scale').valueAtTime(t); sx *= s[0] / 100; sy *= s[1] / 100; } l = l._parent; }
     this._parent = p;
-    if (p) throw Error('el mock solo compensa al quitar el padre');
+    if (p) {
+      // Asignar padre con compensación: la capa no se mueve en la composición (valores estáticos sin claves).
+      const pm = MockAE.world(p, t), inv = MockAE.invert(pm), o = MockAE.apply(inv, MockAE.apply(w, anchor)), P = tr.property('ADBE Position');
+      let prot = 0, psx = 1, psy = 1, q = p; while (q) { const qt = q.property('ADBE Transform Group'); prot += qt.property('ADBE Rotate Z').valueAtTime(t); const qs = qt.property('ADBE Scale').valueAtTime(t); psx *= qs[0] / 100; psy *= qs[1] / 100; q = q._parent; }
+      if (!P.numKeys) P._value = [o[0], o[1]];
+      const R = tr.property('ADBE Rotate Z'); if (!R.numKeys) R._value = rot - prot;
+      const S = tr.property('ADBE Scale'), s0 = S.valueAtTime(t); if (!S.numKeys) S._value = [s0[0] / psx, s0[1] / psy];
+      return;
+    }
     const o = MockAE.apply(w, anchor), P = tr.property('ADBE Position');
     if (P.numKeys) { const d = [o[0] - P.valueAtTime(t)[0], o[1] - P.valueAtTime(t)[1]]; P.keys.forEach((k) => { k.v = [k.v[0] + d[0], k.v[1] + d[1]]; }); } else P._value = [o[0], o[1]];
     const R = tr.property('ADBE Rotate Z'), dr = rot - R.valueAtTime(t);
@@ -241,7 +267,8 @@ const MockAE = {
 };
 
 // Crea un contexto con `app` y los globales de ExtendScript y carga gravedad.jsx.
-function createHost(hostDir) {
+function createHost(hostDir, reuse) {
+  if (reuse) return makeContext(hostDir, reuse.project, reuse.app);
   nextId = 1;
   MockAE.stats = { setValuesAtTimes: 0, pngs: 0, undoOpen: 0, undoGroups: [] };
   const project = { _items: [], get numItems() { return this._items.length; }, item(i) { return this._items[i - 1]; }, activeItem: null,
@@ -254,11 +281,15 @@ function createHost(hostDir) {
     beginSuppressDialogs() {}, endSuppressDialogs() {},
     activeViewer: null
   };
+  return makeContext(hostDir, project, app);
+}
+// Un contexto de ExtendScript nuevo sobre el mismo proyecto: equivale a cerrar y reabrir el panel (o el proyecto guardado).
+function makeContext(hostDir, project, app) {
   class File { constructor(p) { this.fsName = path.resolve(String(p)); } get exists() { return fs.existsSync(this.fsName); } get parent() { return new Folder(path.dirname(this.fsName)); } }
   class Folder { constructor(p) { this.fsName = path.resolve(String(p)); } get exists() { return fs.existsSync(this.fsName); } create() { fs.mkdirSync(this.fsName, { recursive: true }); return true; } }
   Folder.temp = new Folder(require('os').tmpdir());
   class MarkerValue { constructor(comment) { this.comment = comment; } }
-  const ctx = { MarkerValue, app, CompItem, FootageItem, FolderItem, AVLayer, ShapeLayer, TextLayer, SolidSource, MaskMode, Shape, File, Folder, ViewerType: { VIEWER_COMPOSITION: 1 }, PropertyType: { PROPERTY: 'PROPERTY' }, Math, Date, Error, String, Number, Array, Object, RegExp, isFinite, parseFloat };
+  const ctx = { KeyframeInterpolationType, KeyframeEase, MarkerValue, app, CompItem, FootageItem, FolderItem, AVLayer, ShapeLayer, TextLayer, SolidSource, MaskMode, Shape, File, Folder, ViewerType: { VIEWER_COMPOSITION: 1 }, PropertyType: { PROPERTY: 'PROPERTY' }, Math, Date, Error, String, Number, Array, Object, RegExp, isFinite, parseFloat };
   ctx.$ = { fileName: '', evalFile(f) { const file = f.fsName || f; const code = fs.readFileSync(file, 'utf8'); ctx.$.fileName = file; vm.runInContext(code, ctx, { filename: file }); } };
   vm.createContext(ctx);
   // json2 solo se carga si falta JSON: en Node existe, así que se fuerza para probar el mismo camino que en After.

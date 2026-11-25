@@ -159,7 +159,10 @@ test('borrar sin nulo de mundo y con el nulo borrado después de simular', async
   assert.strictEqual(ok(h.call('clear')).cleared, 0);
   await Pipeline.simulate(io(h));
   c._layers.find((l) => l.comment.indexOf('gravedad:mundo') === 0).remove();
-  assert.strictEqual(ok(h.call('clear')).cleared, 1);
+  // Sin el nulo de mundo no hay registro para distinguir claves: no se borra a ciegas y se avisa.
+  const r = ok(h.call('clear'));
+  assert.strictEqual(r.cleared, 0); assert.deepStrictEqual(r.legacy, ['b']);
+  assert.ok(b.transform.position.numKeys > 5);
 });
 test('ajustes del mundo con valores basura se ignoran', () => {
   const { h } = setup();

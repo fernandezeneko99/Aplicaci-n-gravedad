@@ -127,6 +127,7 @@ var Gravedad = (function () {
   }
   function rotationGuess(layer, t) { var r = 0, l = layer, guard = 0; while (l && guard++ < 50) { r += transformProp(l, 'ADBE Rotate Z').valueAtTime(t, false); l = l.parent; } return r; }
   function round(v) { return Math.round(v * 1000) / 1000; }
+  function round2(v) { return Math.round(v * 100) / 100; }
 
   // ---------- Mundo ----------
   function worldSettings(c) {
@@ -221,6 +222,7 @@ var Gravedad = (function () {
     var out = { version: VERSION, comp: { id: c.id, name: c.name, width: c.width, height: c.height, fps: c.frameRate, start: c.workAreaStart, duration: c.workAreaDuration, frames: frameCount(c), time: c.time }, world: worldSettings(c), dynamic: 0, fixed: 0, off: 0, forces: 0, emitters: 0, particles: 0, simulated: 0, selected: c.selectedLayers.length, selection: selectionInfo(c) };
     var info = simInfo(c);
     if (info) { out.sim = info; if (deep) out.sim.stale = info.sig !== signature(c); }
+    if (deep) { var pend = pendingSettles(c, readStore(c)), names = []; for (var pi = 0; pi < pend.length && pi < 5; pi++) if (pend[pi].layer) names.push(pend[pi].layer.name); out.pendingTypes = names; }
     for (var i = 1; i <= c.numLayers; i++) {
       var l = c.layer(i);
       if (isTagged(l, TAG.particle)) { out.particles++; continue; }
@@ -243,7 +245,7 @@ var Gravedad = (function () {
     if (isTagged(layer, TAG.world) || isTagged(layer, TAG.force) || isTagged(layer, TAG.emitter)) throw Error(layer.name + ': es un control de Gravedad.');
   }
   function makeBody(layer, type) {
-    if (type !== TYPE.dynamic) forgetSim(layer);
+    if (type !== TYPE.dynamic) settleType(layer, type);
     addMenu(layer, N.type, ['Din\u00e1mico', 'Fijo', 'Desactivado'], type);
     control(layer, N.type).property(1).setValue(type);
     addMenu(layer, N.shape, ['Autom\u00e1tica', 'Caja', 'C\u00edrculo'], 1);
@@ -329,7 +331,7 @@ var Gravedad = (function () {
     });
     function applyValues(l) {
         if (!isBody(l)) makeBody(l, TYPE[values.type] || TYPE.dynamic);
-        if (values.type && TYPE[values.type]) { if (TYPE[values.type] !== TYPE.dynamic) forgetSim(l); setIfChanged(control(l, N.type).property(1), TYPE[values.type]); }
+        if (values.type && TYPE[values.type]) { if (TYPE[values.type] !== TYPE.dynamic) settleType(l, TYPE[values.type]); setIfChanged(control(l, N.type).property(1), TYPE[values.type]); }
         for (var key in map) {
           if (!map.hasOwnProperty(key) || typeof values[key] !== 'number' || !isFinite(values[key])) continue;
           var fx = control(l, map[key][0]);
@@ -499,12 +501,12 @@ var Gravedad = (function () {
   }
 
   function describe(l, c, frames, dir, cache, kindOverride) {
-    var resting = kindOverride === 'resting', type = resting ? 'fixed' : kindOverride || bodyType(l), span = spanOf(l, c, frames);
+    var type = kindOverride || bodyType(l), span = spanOf(l, c, frames);
     if (type === 'off' || span.despawn <= span.spawn) return null;
     var t = frameTime(c, span.spawn), p = pose(l, t, rotationGuess(l, t)), geo = geometryOf(l, c, t, dir, cache);
     var body = { id: String(l.id), index: l.index, name: l.name, type: type === 'dynamic' ? 'dynamic' : 'static', spawn: span.spawn, despawn: span.despawn < frames ? span.despawn : null, pose: { x: round(p.x), y: round(p.y), a: round(p.a) }, matrix: p.m, material: material(l), note: geo.note };
     if (geo.shape) body.layerShape = geo.shape; else { body.raster = geo.raster; body.fallback = geo.fallback; }
-    if (type === 'fixed' && !resting && animated(l)) {
+    if (type === 'fixed' && animated(l)) {
       body.type = 'kinematic'; body.track = [];
       var prev = p.a;
       for (var k = span.spawn; k < (span.despawn || frames); k++) { var q = pose(l, frameTime(c, k), prev); prev = q.a; body.track.push([round(q.x), round(q.y), round(q.a)]); }
@@ -540,15 +542,13 @@ var Gravedad = (function () {
     var c = comp(), frames = frameCount(c), dir = arg.tempDir || Folder.temp.fsName, cache = {};
     var folder = new Folder(dir); if (!folder.exists) folder.create();
     var scene = { compId: c.id, fps: c.frameRate, frames: frames, start: c.workAreaStart, width: c.width, height: c.height, world: worldSettings(c), bodies: [], forces: [], emitters: [], problems: [] };
-    var i, k, l, templates = {}, emitterLayers = findAll(c, TAG.emitter), simulatedBefore = simIds(c);
+    var i, k, l, templates = {}, emitterLayers = findAll(c, TAG.emitter);
     for (i = 0; i < emitterLayers.length; i++) { var tl = templatesOf(emitterLayers[i], c); for (k = 0; k < tl.length; k++) templates[tl[k].id] = true; }
     for (i = 1; i <= c.numLayers; i++) {
       l = c.layer(i);
       if (!isBody(l) || templates[l.id]) continue;
       if (l.threeDLayer) { scene.problems.push(l.name + ': es 3D, se ignora.'); continue; }
-      // Si fue simulada y ya no es dinamica, sus claves son de la simulacion anterior: se usa su pose de partida.
-      var staleSim = simulatedBefore[String(l.id)] && bodyType(l) === 'fixed';
-      try { var b = describe(l, c, frames, dir, cache, staleSim ? 'resting' : undefined); if (b) scene.bodies.push(b); }
+      try { var b = describe(l, c, frames, dir, cache); if (b) scene.bodies.push(b); }
       catch (e) { scene.problems.push(l.name + ': ' + e.message); }
     }
     // Uniones definidas en los cuerpos.
@@ -625,16 +625,17 @@ var Gravedad = (function () {
     }
   }
   function layerById(c, id) { for (var i = 1; i <= c.numLayers; i++) if (String(c.layer(i).id) === String(id)) return c.layer(i); return null; }
-  function writeMotion(l, c, rec, rot0, times) {
+  function writeMotion(l, c, rec, rot0, times, record) {
     var n = rec.data.length / 3, pos = [], rot = [], t = [], i;
     keysWritten += n * 2;
     var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position'), R = tr.property('ADBE Rotate Z');
     var a0 = rec.data[2], three = !P.dimensionsSeparated && P.value.length === 3, z = three ? P.value[2] : 0;
     for (i = 0; i < n; i++) {
       t.push(times[rec.from + i]);
-      var x = rec.data[i * 3], y = rec.data[i * 3 + 1];
+      // Centesimas de pixel y de grado: imperceptible y permite reconocer despues cada clave escrita.
+      var x = round2(rec.data[i * 3]), y = round2(rec.data[i * 3 + 1]);
       pos.push(three ? [x, y, z] : [x, y]);
-      rot.push(round(rot0 + rec.data[i * 3 + 2] - a0));
+      rot.push(round2(rot0 + rec.data[i * 3 + 2] - a0));
     }
     var end = times[times.length - 1] + 1 / c.frameRate, first = rec.from, last = rec.from + n - 1, fps = c.frameRate, start = c.workAreaStart;
     var keep = function (tk) { var k = Math.round((tk - start) * fps); return k >= first && k <= last && Math.abs(times[k] - tk) < 1e-4; };
@@ -644,14 +645,22 @@ var Gravedad = (function () {
       X.expressionEnabled = false; Y.expressionEnabled = false;
       removeKeysIn(X, t[0], end, keep); removeKeysIn(Y, t[0], end, keep);
       X.setValuesAtTimes(t, xs); Y.setValuesAtTimes(t, ys);
+      if (record) { hashes(record, 'ADBE Position_0', xs); hashes(record, 'ADBE Position_1', ys); }
     } else {
       if (P.expressionEnabled) P.expressionEnabled = false;
       removeKeysIn(P, t[0], end, keep);
       P.setValuesAtTimes(t, pos);
+      if (record) hashes(record, 'ADBE Position', pos);
     }
     if (R.expressionEnabled) R.expressionEnabled = false;
     removeKeysIn(R, t[0], end, keep);
     R.setValuesAtTimes(t, rot);
+    if (record) { hashes(record, 'ADBE Rotate Z', rot); record.from = rec.from; record.n = n; record.start = c.workAreaStart; record.fps = c.frameRate; }
+  }
+  function hashes(record, name, values) {
+    var pr = record.props[name] || (record.props[name] = { h: [], orig: [] }), out = [];
+    for (var i = 0; i < values.length; i++) out.push(valueHash(values[i]));
+    pr.h = out;
   }
   function removeParticles(c) {
     var list = [];
@@ -692,9 +701,12 @@ var Gravedad = (function () {
     frames = res.frames;
     for (k = 0; k <= frames; k++) times.push(round(frameTime(c, k) * 1e6) / 1e6);
     return undo('Gravedad \u00b7 Simular', function () {
-      var written = 0, created = 0, problems = [], before = simIds(c), now = {};
+      var written = 0, created = 0, problems = [], now = {}, hadWorld = !!find(c, TAG.world), store = readStore(c), end = times[times.length - 1] + 1 / c.frameRate;
       keysWritten = 0;
       removeParticles(c);
+      // Capas simuladas antes que ya no son dinamicas (cambiadas en Controles de efectos): se asientan primero.
+      var pend = pendingSettles(c, store);
+      for (var q = 0; q < pend.length; q++) { if (!pend[q].layer) { delete store.layers[pend[q].id]; continue; } (function (pl, pt) { try { unlocked(pl, function () { settleLayer(pl, c, store, pt === 'fixed' ? 'freeze' : 'restore'); }); } catch (eP) { problems.push(pl.name + ': ' + eP.message); } }(pend[q].layer, pend[q].type)); }
       for (var id in res.bodies) {
         if (!res.bodies.hasOwnProperty(id)) continue;
         var rec = res.bodies[id], l = layerById(c, id);
@@ -703,8 +715,9 @@ var Gravedad = (function () {
           unlocked(l, function () {
             // La rotacion se escribe como giro relativo a la de partida; se lee antes de quitar el padre.
             var rot0 = rotationGuess(l, times[rec.from]);
+            var record = backupLayer(l, c, store, times[rec.from], end);
             if (l.parent) l.parent = null;
-            writeMotion(l, c, rec, rot0, times); written++; now[String(l.id)] = true;
+            writeMotion(l, c, rec, rot0, times, record); written++; now[String(l.id)] = true;
             removeMarkers(l);
             if (res.markers && res.contacts && res.contacts[id]) for (var h = 0; h < res.contacts[id].length; h++) addMarker(l, times[res.contacts[id][h]]);
           });
@@ -736,73 +749,198 @@ var Gravedad = (function () {
         dup.moveBefore(tpl);
         created++;
       }
-      // Capas simuladas antes que ya no son dinamicas: vuelven a su pose de partida.
-      for (var old in before) if (before.hasOwnProperty(old) && !now[old]) { var ol = layerById(c, old); if (ol && !isTagged(ol, TAG.particle)) { try { unlocked(ol, function () { clearLayer(ol, c); }); } catch (eOld) { problems.push(ol.name + ': ' + eOld.message); } } }
-      var hadWorld = !!find(c, TAG.world), w = ensureWorld(c), d = new Date();
+      var w = ensureWorld(c), d = new Date();
+      writeStore(c, store);
       // Si el nulo de mundo se acaba de crear, la huella se recalcula (el mundo forma parte de ella).
       w.comment = TAG.world;
       var sig = hadWorld && arg.signature ? arg.signature : signature(c);
       w.comment = TAG.world + ';sig=' + sig + ';frames=' + frames + ';start=' + c.workAreaStart + ';fps=' + c.frameRate + ';date=' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
-      setSimIds(c, now);
       var s = summary(c, true); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
     });
   }
 
-  // Quita las claves que escribio la simulacion: la capa vuelve a su pose de partida.
-  // ---------- Capas con claves de la simulacion ----------
-  // El nulo de mundo guarda los ids de las capas que recibieron claves. Asi, si una deja de ser dinamica (desde el panel
-  // o desde Controles de efectos), sus claves viejas no se confunden con una animacion propia.
-  function simIds(c) {
-    var w = find(c, TAG.world), out = {};
+  // ---------- Registro de lo que escribio la simulacion ----------
+  // Por cada capa simulada se guarda (en marcadores del nulo de mundo, asi viaja con el proyecto y con Deshacer):
+  //   - el tramo de fotogramas escrito y una huella del valor de cada clave generada;
+  //   - una copia completa de las claves que la capa tenia antes (valor, interpolacion, suavizado, tangentes),
+  //     su valor estatico, si tenia expresion activa y su padre.
+  // Asi la limpieza solo quita claves de Gravedad y devuelve las originales; lo que el usuario anada despues se queda.
+  var STORE = 'Gravedad \u00b7 datos';
+  function storeMarkers(c) {
+    var w = find(c, TAG.world), out = [];
     if (!w) return out;
-    var m = /;ids=([0-9,]*)/.exec(String(w.comment));
+    var M = w.property('ADBE Marker');
+    for (var i = 1; i <= M.numKeys; i++) { var v = M.keyValue(i); if (String(v.comment).indexOf(STORE) === 0) out.push({ index: i, comment: String(v.comment) }); }
+    return out;
+  }
+  function readStore(c) {
+    var parts = storeMarkers(c), text = '';
+    for (var i = 0; i < parts.length; i++) text += parts[i].comment.substring(parts[i].comment.indexOf('\n') + 1);
+    if (!text) return { v: 1, layers: {} };
+    try { var o = JSON.parse(text); if (o && o.layers) return o; } catch (e) {}
+    return { v: 1, layers: {} };
+  }
+  function writeStore(c, store) {
+    var w = ensureWorld(c), M = w.property('ADBE Marker'), old = storeMarkers(c), any = false;
+    for (var i = old.length - 1; i >= 0; i--) M.removeKey(old[i].index);
+    for (var id in store.layers) if (store.layers.hasOwnProperty(id)) { any = true; break; }
+    if (!any) return;
+    // Trozos de 20000 caracteres, un marcador por fotograma desde el inicio del nulo.
+    var text = JSON.stringify(store), n = Math.ceil(text.length / 20000);
+    for (var k = 0; k < n; k++) M.setValueAtTime(w.inPoint + k * c.frameDuration, new MarkerValue(STORE + ' ' + (k + 1) + '/' + n + ' (no borrar)\n' + text.substring(k * 20000, (k + 1) * 20000)));
+  }
+  function legacyIds(c) {
+    var w = find(c, TAG.world), out = {}, m = w ? /;ids=([0-9,]*)/.exec(String(w.comment)) : null;
     if (m && m[1]) { var list = m[1].split(','); for (var i = 0; i < list.length; i++) if (list[i]) out[list[i]] = true; }
     return out;
   }
-  function setSimIds(c, ids) {
-    var w = find(c, TAG.world);
-    if (!w) return;
-    var list = [];
-    for (var id in ids) if (ids.hasOwnProperty(id) && ids[id]) list.push(id);
-    var text = String(w.comment).replace(/;ids=[0-9,]*/, '');
-    w.comment = text + (list.length ? ';ids=' + list.join(',') : '');
+  function valueHash(v) {
+    if (v instanceof Array) { var parts = []; for (var i = 0; i < v.length; i++) parts.push(Math.round(v[i] * 100)); return hashText(parts.join(',')); }
+    return hashText(String(Math.round(v * 100)));
   }
-  // Devuelve la capa a su pose de partida quitando las claves del area de trabajo (las anteriores del usuario se quedan).
-  function clearLayer(l, c) {
-        var end = frameTime(c, frameCount(c));
-        var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position'), R = tr.property('ADBE Rotate Z');
-        var span = spanOf(l, c, frameCount(c)), t0 = frameTime(c, span.spawn), list = P.dimensionsSeparated ? [tr.property('ADBE Position_0'), tr.property('ADBE Position_1'), R] : [P, R], touched = false;
-        for (var j = 0; j < list.length; j++) {
-          var p = list[j];
-          if (!p.numKeys) continue;
-          var rest = p.valueAtTime(t0, false), before = p.numKeys && p.keyTime(1) < t0 - 1e-4;
-          removeKeysIn(p, t0, end);
-          if (before) p.setValueAtTime(t0, rest); else if (!p.numKeys) p.setValue(rest);
-          touched = true;
-        }
-        removeMarkers(l);
-        return touched;
+  function easeOut(list) { var out = []; for (var i = 0; i < list.length; i++) out.push([list[i].speed, list[i].influence]); return out; }
+  function easeIn(list) { var out = []; for (var i = 0; i < list.length; i++) out.push(new KeyframeEase(list[i][0], list[i][1])); return out; }
+  function keyInfo(p, i) {
+    var k = { t: p.keyTime(i), v: p.keyValue(i) };
+    try { k.ii = p.keyInInterpolationType(i); k.oi = p.keyOutInterpolationType(i); } catch (e1) {}
+    try { k.ie = easeOut(p.keyInTemporalEase(i)); k.oe = easeOut(p.keyOutTemporalEase(i)); } catch (e2) {}
+    try { k.ta = p.keyTemporalAutoBezier(i); k.tc = p.keyTemporalContinuous(i); } catch (e3) {}
+    if (p.isSpatial) { try { k.it = p.keyInSpatialTangent(i); k.ot = p.keyOutSpatialTangent(i); k.sa = p.keySpatialAutoBezier(i); k.sc = p.keySpatialContinuous(i); k.r = p.keyRoving(i); } catch (e4) {} }
+    return k;
   }
-  // Una capa simulada que deja de ser dinamica vuelve a su pose de partida.
-  function forgetSim(l) {
-    var c = l.containingComp, ids = simIds(c);
-    if (!ids[String(l.id)]) return false;
-    unlocked(l, function () { clearLayer(l, c); });
-    ids[String(l.id)] = false; setSimIds(c, ids);
+  function restoreKey(p, k) {
+    p.setValueAtTime(k.t, k.v);
+    var i = p.nearestKeyIndex(k.t);
+    try { if (k.ii) p.setInterpolationTypeAtKey(i, k.ii, k.oi); } catch (e1) {}
+    try { if (k.ie) p.setTemporalEaseAtKey(i, easeIn(k.ie), easeIn(k.oe)); } catch (e2) {}
+    try { if (k.ta !== undefined) { p.setTemporalContinuousAtKey(i, k.tc); p.setTemporalAutoBezierAtKey(i, k.ta); } } catch (e3) {}
+    if (p.isSpatial && k.it) { try { p.setSpatialTangentsAtKey(i, k.it, k.ot); p.setSpatialContinuousAtKey(i, k.sc); p.setSpatialAutoBezierAtKey(i, k.sa); if (k.r) p.setRovingAtKey(i, true); } catch (e4) {} }
+  }
+  function motionProps(l) {
+    var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position');
+    return P.dimensionsSeparated ? [tr.property('ADBE Position_0'), tr.property('ADBE Position_1'), tr.property('ADBE Rotate Z')] : [P, tr.property('ADBE Rotate Z')];
+  }
+  // Una clave es de Gravedad si cae en un fotograma que escribio la simulacion y conserva el valor que escribio.
+  function generated(rec, pr, t, v) {
+    if (!rec || !pr) return false;
+    var k = Math.round((t - rec.start) * rec.fps), j = k - rec.from;
+    return j >= 0 && j < pr.h.length && Math.abs(rec.start + k / rec.fps - t) < 1e-3 && pr.h[j] === valueHash(v);
+  }
+  // Antes de escribir: se guarda lo que la capa tenia (solo la primera vez) y las claves del usuario que se van a tapar.
+  function backupLayer(l, c, store, from, to) {
+    var id = String(l.id), rec = store.layers[id], props = motionProps(l), i, j;
+    if (!rec) {
+      rec = store.layers[id] = { props: {}, parent: l.parent ? String(l.parent.id) : null, from: 0, start: c.workAreaStart, fps: c.frameRate };
+      for (j = 0; j < props.length; j++) {
+        var q = props[j], st = { h: [], orig: [], expr: q.canSetExpression && q.expressionEnabled ? true : false };
+        if (!q.numKeys) st.value = q.value;
+        rec.props[q.matchName] = st;
+      }
+    }
+    for (j = 0; j < props.length; j++) {
+      var p = props[j], pr = rec.props[p.matchName];
+      if (!pr) pr = rec.props[p.matchName] = { h: [], orig: [] };
+      for (i = 1; i <= p.numKeys; i++) {
+        var t = p.keyTime(i);
+        if (t < from - 1e-4 || t > to + 1e-4 || generated(rec, pr, t, p.keyValue(i))) continue;
+        var dup = false;
+        for (var o = 0; o < pr.orig.length; o++) if (Math.abs(pr.orig[o].t - t) < 1e-4) { dup = true; break; }
+        if (!dup) pr.orig.push(keyInfo(p, i));
+      }
+    }
+    return rec;
+  }
+  // Quita las claves de Gravedad y devuelve las originales. mode: 'restore' (como antes de simular) o 'freeze'
+  // (Fijo en la pose visible en el instante actual). Devuelve true si toco la capa.
+  function settleLayer(l, c, store, mode) {
+    var id = String(l.id), rec = store.layers[id];
+    if (!rec) return false;
+    var props = motionProps(l), i, j, frozen = null, userKeys = 0;
+    if (mode === 'freeze') {
+      var tf = Math.max(rec.start + rec.from / rec.fps, Math.min(rec.start + (rec.from + rec.n - 1) / rec.fps, c.time));
+      frozen = [];
+      for (j = 0; j < props.length; j++) frozen.push(props[j].valueAtTime(tf, false));
+    }
+    for (j = 0; j < props.length; j++) {
+      var p = props[j], pr = rec.props[p.matchName];
+      for (i = p.numKeys; i >= 1; i--) { if (generated(rec, pr, p.keyTime(i), p.keyValue(i))) p.removeKey(i); else userKeys++; }
+    }
+    var hasOwn = false;
+    for (j = 0; j < props.length; j++) { var pr2 = rec.props[props[j].matchName]; if (pr2 && pr2.orig.length) hasOwn = true; }
+    var parent = rec.parent ? layerById(c, rec.parent) : null;
+    if (mode === 'freeze' && !hasOwn && !userKeys) {
+      // Fijo sin animacion propia: se queda donde se ve ahora (en coordenadas de la composicion) y recupera su padre.
+      for (j = 0; j < props.length; j++) props[j].setValue(frozen[j]);
+      if (parent) l.parent = parent;
+    } else {
+      // Como estaba antes de simular: padre sin compensar (los valores guardados son relativos a el) y claves originales.
+      if (parent && !userKeys) l.setParentWithJump(parent);
+      for (j = 0; j < props.length; j++) {
+        var q = props[j], st = rec.props[q.matchName];
+        if (!st) continue;
+        for (i = 0; i < st.orig.length; i++) { var exists = false; for (var e = 1; e <= q.numKeys; e++) if (Math.abs(q.keyTime(e) - st.orig[i].t) < 1e-4) exists = true; if (!exists) restoreKey(q, st.orig[i]); }
+        if (!q.numKeys && st.value !== undefined) q.setValue(st.value);
+        if (st.expr && q.canSetExpression) q.expressionEnabled = true;
+      }
+    }
+    removeMarkers(l);
+    delete store.layers[id];
     return true;
+  }
+  // Cambio de tipo de una capa simulada: Fijo conserva la pose actual; Desactivado vuelve a como estaba.
+  function settleType(l, type) {
+    var c = l.containingComp, store = readStore(c);
+    if (!store.layers[String(l.id)]) return false;
+    unlocked(l, function () { settleLayer(l, c, store, type === TYPE.fixed ? 'freeze' : 'restore'); });
+    writeStore(c, store);
+    return true;
+  }
+  // Cambios hechos en Controles de efectos: se aplican al simular o al borrar.
+  function pendingSettles(c, store) {
+    var out = [];
+    for (var id in store.layers) {
+      if (!store.layers.hasOwnProperty(id)) continue;
+      var l = layerById(c, id);
+      if (!l) { out.push({ id: id, layer: null }); continue; }
+      var t = isBody(l) ? bodyType(l) : 'off';
+      if (t !== 'dynamic') out.push({ id: id, layer: l, type: t });
+    }
+    return out;
+  }
+  function normalize() {
+    var c = comp(), store = readStore(c), list = pendingSettles(c, store);
+    if (!list.length) return { settled: 0 };
+    return undo('Gravedad \u00b7 Aplicar cambios de tipo', function () {
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (!it.layer) { delete store.layers[it.id]; continue; }
+        (function (l, type) { unlocked(l, function () { settleLayer(l, c, store, type === 'fixed' ? 'freeze' : 'restore'); }); }(it.layer, it.type));
+      }
+      writeStore(c, store);
+      return { settled: list.length };
+    });
   }
 
   function clear() {
     var c = comp();
     return undo('Gravedad \u00b7 Borrar simulaci\u00f3n', function () {
-      var cleared = 0, removed = removeParticles(c), ids = simIds(c);
-      for (var i = 1; i <= c.numLayers; i++) {
-        var l = c.layer(i);
-        if (!(ids[String(l.id)] || (isBody(l) && bodyType(l) === 'dynamic'))) continue;
-        if (unlocked(l, function () { return clearLayer(l, c); })) cleared++;
+      var cleared = 0, removed = removeParticles(c), store = readStore(c), legacy = legacyIds(c), skipped = [];
+      for (var id in store.layers) {
+        if (!store.layers.hasOwnProperty(id)) continue;
+        var l = layerById(c, id);
+        if (!l) { delete store.layers[id]; continue; }
+        if (unlocked(l, function () { return settleLayer(l, c, store, 'restore'); })) cleared++;
       }
+      // Proyectos de la 1.1.1: sin registro no se puede distinguir; no se borra a ciegas.
+      for (var lid in legacy) if (legacy.hasOwnProperty(lid)) { var ll = layerById(c, lid); if (ll && motionProps(ll)[0].numKeys) skipped.push(ll.name); }
+      // Dinamicas con claves pero sin registro (nulo de mundo borrado, capa duplicada...): tampoco se tocan.
+      for (var n = 1; n <= c.numLayers; n++) {
+        var dl = c.layer(n);
+        if (store.layers[String(dl.id)] === undefined && !legacy[String(dl.id)] && isBody(dl) && bodyType(dl) === 'dynamic' && (motionProps(dl)[0].numKeys > 1 || motionProps(dl)[motionProps(dl).length - 1].numKeys > 1)) skipped.push(dl.name);
+      }
+      writeStore(c, store);
       var w0 = find(c, TAG.world); if (w0) w0.comment = TAG.world;
-      var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; return s0;
+      var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; s0.legacy = skipped; return s0;
     });
   }
 
@@ -818,6 +956,7 @@ var Gravedad = (function () {
     _incoming: null,
     inspect: function (raw) { return wrap(function (arg) { return summary(comp(true), !!arg.deep); }, raw); },
     bodies: function (raw) { return wrap(setBodies, raw); },
+    normalize: function (raw) { return wrap(normalize, raw); },
     // Latido barato (varias veces por segundo): tiempo actual y si cambio la composicion o la seleccion.
     tick: function () {
       try {

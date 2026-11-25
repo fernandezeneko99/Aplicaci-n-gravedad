@@ -43,6 +43,10 @@
   async function simulate(io) {
     var warnings = [];
     io.progress(0, 'Leyendo la escena…');
+    // Capas simuladas cuyo tipo se cambió en Controles de efectos: se asientan antes de leer la escena
+    // (Fijo en la pose del instante actual; Desactivado, como estaba antes de simular).
+    var norm = await io.call('normalize', {});
+    if (norm && norm.settled) warnings.push(norm.settled + (norm.settled === 1 ? ' capa cambiada' : ' capas cambiadas') + ' de tipo en Controles de efectos: Fijo se queda en la pose del instante actual y Desactivado vuelve a como estaba.');
     var host = await io.call('gather', { tempDir: io.tempDir });
     (host.problems || []).forEach(function (p) { warnings.push(p); });
     var names = {};

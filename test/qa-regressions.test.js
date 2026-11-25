@@ -22,6 +22,7 @@ function io(h) { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'gravedad-qa-')
 const ok = (r) => { assert.ok(r.ok, r.error); return r.data; };
 const sel = (c, ls) => { for (let i = 1; i <= c.numLayers; i++) c.layer(i).selected = false; ls.forEach((l) => { l.selected = true; }); };
 const plain = (v) => JSON.parse(JSON.stringify(v));
+const fx = (l) => l.property('ADBE Effect Parade').property('Gravedad · Tipo');
 
 // ---------- F1: cambiar de Dinámico a Fijo/Desactivado tras simular ----------
 async function simulatedBall() {
@@ -77,4 +78,148 @@ test('F1 · pasar a Fijo y volver a Dinámico: simula de nuevo desde la pose de 
   await Pipeline.simulate(io(h));
   assert.deepStrictEqual(plain(ball.transform.position.keys[0].v), [300, 100]);
   assert.ok(ball.transform.position.numKeys > 5);
+});
+
+// ---------- F1 ampliado: claves propias, pose de Fijo, Desactivado, vías de cambio, reapertura y duplicados ----------
+const { KeyframeInterpolationType: KIT } = { KeyframeInterpolationType: { LINEAR: 6612, BEZIER: 6613, HOLD: 6614 } };
+// Escena mínima: A (bola con claves propias y suavizado dentro del área de trabajo), B (caja dinámica), suelo fijo.
+async function scene(opts) {
+  opts = opts || {};
+  const { h, c } = setup({ duration: 4 });
+  const floor = shape(c, 'suelo', [1200, 40], [640, 700]);
+  const A = shape(c, 'A', [80, 80], [400, 200], !opts.boxA), B = shape(c, 'B', [60, 60], [400, 40]);
+  const P = A.transform.position;
+  P.setValueAtTime(0, [400, 200]); P.setValueAtTime(1.5, [420, 200]);
+  P.setInterpolationTypeAtKey(2, KIT.BEZIER, KIT.HOLD); P.setTemporalEaseAtKey(2, [{ speed: 3, influence: 70 }], [{ speed: 0, influence: 20 }]); P.setSpatialTangentsAtKey(2, [-30, 5], [10, 0]);
+  sel(c, [floor]); ok(h.call('assign', { mode: 'fixed' }));
+  sel(c, [A, B]); ok(h.call('assign', { mode: 'dynamic' }));
+  for (let i = 1; i <= P.numKeys; i++) P._k(i); // atributos completos de las claves originales
+  const original = JSON.parse(JSON.stringify(P.keys));
+  if (!opts.skipSim) await Pipeline.simulate(io(h));
+  return { h, c, A, B, floor, P, original };
+}
+const keyAttrs = (P) => JSON.parse(JSON.stringify(P.keys.map((k) => ({ t: k.t, v: k.v, a: k.a }))));
+const at = (l, t) => plain(l.transform.position.valueAtTime(t));
+
+test('F1 · Borrar restaura las claves propias de A con su valor e interpolación, y deja B en su pose de partida', async () => {
+  const { h, A, B, P, original } = await scene();
+  assert.ok(P.numKeys > 10, 'la simulación sustituyó las claves');
+  ok(h.call('clear'));
+  assert.deepStrictEqual(keyAttrs(P), original.map((k) => ({ t: k.t, v: k.v, a: k.a })));
+  assert.strictEqual(P.keys[1].a.outI, KIT.HOLD); assert.deepStrictEqual(plain(P.keys[1].a.inT), [-30, 5]);
+  assert.strictEqual(B.transform.position.numKeys, 0); assert.deepStrictEqual(plain(B.transform.position.value), [400, 40]);
+});
+test('F1 · claves que el usuario añade o edita después de simular sobreviven a Borrar', async () => {
+  const { h, c, A, P } = await scene();
+  P.setValueAtTime(3.37, [10, 10]);                 // fuera de la rejilla de fotogramas
+  const k = 8, tk = P.keys[k].t; P.keys[k].v = [999, 999]; // edita una clave generada (fotograma 8)
+  ok(h.call('clear'));
+  assert.ok(P.keys.some((x) => Math.abs(x.t - 3.37) < 1e-6), 'la clave añadida sigue');
+  assert.ok(P.keys.some((x) => Math.abs(x.t - tk) < 1e-6 && x.v[0] === 999), 'la clave editada sigue');
+  assert.ok(P.keys.some((x) => x.t === 0) && P.keys.some((x) => Math.abs(x.t - 1.5) < 1e-6), 'las originales vuelven');
+});
+test('F1 · re-simular dos veces no convierte claves de Gravedad en «originales»', async () => {
+  const { h, P, original } = await scene();
+  await Pipeline.simulate(io(h)); await Pipeline.simulate(io(h));
+  ok(h.call('clear'));
+  assert.deepStrictEqual(P.keys.map((k) => k.t), original.map((k) => k.t));
+});
+test('F1 · Fijo con el cursor al inicio: se queda en la pose de partida; B choca con él ahí', async () => {
+  const { h, c, A, B } = await scene({ boxA: true });
+  c.time = 0;
+  sel(c, [A]); ok(h.call('assign', { mode: 'fixed' }));
+  assert.deepStrictEqual(at(A, 0), [400, 200]);
+  await Pipeline.simulate(io(h));
+  // A conserva su animación propia (claves originales): el Fijo la sigue
+  assert.deepStrictEqual(plain(A.transform.position.keys.map((k) => k.t)), [0, 1.5]);
+  const bEnd = B.transform.position.keys.slice(-1)[0].v;
+  assert.ok(bEnd[1] < 200 - 40 - 30 + 2 && bEnd[1] > 100, 'B se apoya sobre A: ' + bEnd);
+});
+test('F1 · Fijo con el cursor a mitad: se congela donde se ve en ese instante (cuerpo sin animación propia)', async () => {
+  const { h, c, B } = await scene();
+  c.time = 0.8;
+  const visible = at(B, 0.8);
+  sel(c, [B]); ok(h.call('assign', { mode: 'fixed' }));
+  assert.strictEqual(B.transform.position.numKeys, 0);
+  assert.deepStrictEqual(plain(B.transform.position.value), visible, 'pose congelada en 0,8 s');
+  const out = await Pipeline.simulate(io(h));
+  const fixedB = out.host.bodies.find((b) => b.id === String(B.id));
+  assert.strictEqual(fixedB.type, 'static'); assert.ok(Math.abs(fixedB.pose.y - visible[1]) < 0.01, 'colisiona en la pose congelada');
+});
+test('F1 · Desactivado: B vuelve a como estaba y deja de participar (A ya no choca con B)', async () => {
+  const { h, c, A, B } = await scene({ skipSim: true });
+  B.transform.position.setValue([400, 400]); // B debajo de A: A se apoya en B
+  await Pipeline.simulate(io(h));
+  const withB = A.transform.position.keys.slice(-1)[0].v[1];
+  sel(c, [B]); ok(h.call('bodies', { values: { type: 'off' } }));
+  assert.strictEqual(B.transform.position.numKeys, 0); assert.deepStrictEqual(plain(B.transform.position.value), [400, 400]);
+  await Pipeline.simulate(io(h));
+  const withoutB = A.transform.position.keys.slice(-1)[0].v[1];
+  assert.ok(withoutB > withB + 30, 'A cae más abajo sin B: ' + withB + ' → ' + withoutB);
+  assert.ok(!(await Pipeline.simulate(io(h))).host.bodies.some((b) => b.id === String(B.id)));
+});
+test('F1 · el mismo cambio desde Controles de efectos surte efecto al simular (Fijo a mitad) y avisa', async () => {
+  const { h, c, B } = await scene();
+  c.time = 0.8; const visible = at(B, 0.8);
+  fx(B).property(1)._value = 2;
+  // Hasta simular, After no ha cambiado nada (el cambio es solo del control) y el panel lo informa
+  assert.ok(B.transform.position.numKeys > 5);
+  assert.deepStrictEqual(ok(h.call('inspect', { deep: true })).pendingTypes, ['B']);
+  const out = await Pipeline.simulate(io(h));
+  assert.ok(out.warnings.some((w) => /Controles de efectos/.test(w)));
+  assert.strictEqual(B.transform.position.numKeys, 0); assert.deepStrictEqual(plain(B.transform.position.value), visible);
+  assert.deepStrictEqual(ok(h.call('inspect', { deep: true })).pendingTypes, []);
+});
+test('F1 · el cambio desde Controles de efectos también se aplica al Borrar (Desactivado → como estaba)', async () => {
+  const { h, A, P, original } = await scene();
+  fx(A).property(1)._value = 3;
+  ok(h.call('clear'));
+  assert.deepStrictEqual(P.keys.map((k) => k.t), original.map((k) => k.t));
+});
+test('F1 · cerrar y reabrir (contexto nuevo sobre el mismo proyecto): el registro persiste y Borrar restaura', async () => {
+  const { h, A, P, original } = await scene();
+  const h2 = createHost(HOST, h);
+  const r = h2.call('clear'); assert.ok(r.ok, r.error);
+  assert.deepStrictEqual(P.keys.map((k) => k.t), original.map((k) => k.t));
+});
+test('F1 · duplicar una capa simulada: limpiar una no afecta a la otra', async () => {
+  const { h, c, B } = await scene();
+  const copy = B.duplicate(); const copyKeys = copy.transform.position.numKeys;
+  ok(h.call('clear'));
+  assert.strictEqual(B.transform.position.numKeys, 0);
+  assert.strictEqual(copy.transform.position.numKeys, copyKeys, 'la copia no se toca (sin registro propio)');
+  sel(c, [copy]); ok(h.call('assign', { mode: 'fixed' }));
+  assert.strictEqual(copy.transform.position.numKeys, copyKeys, 'cambiar el tipo de la copia tampoco borra a ciegas');
+});
+test('F1 · proyecto de la 1.1.1 (solo lista de ids): no se borran claves a ciegas y se avisa', async () => {
+  const { h, c, B } = await scene();
+  const w = c._layers.find((l) => String(l.comment).indexOf('gravedad:mundo') === 0);
+  w.property('ADBE Marker').keys = []; w.comment = 'gravedad:mundo;ids=' + B.id;
+  const n = B.transform.position.numKeys, r = ok(h.call('clear'));
+  assert.strictEqual(B.transform.position.numKeys, n);
+  assert.ok(r.legacy.includes('B'));
+});
+test('F1 · capa con padre: Desactivado recupera el padre y sus valores originales sin saltos', async () => {
+  const { h, c } = setup();
+  const parent = c.layers.addNull(); parent.transform.position.setValue([300, 100]); parent.transform.rotation.setValue(20);
+  const k = shape(c, 'hija', [40, 40], [100, 0]); k._parent = parent;
+  sel(c, [k]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  assert.strictEqual(k.parent, null);
+  sel(c, [k]); ok(h.call('bodies', { values: { type: 'off' } }));
+  assert.strictEqual(k.parent, parent);
+  assert.deepStrictEqual(plain(k.transform.position.value), [100, 0]);
+  assert.strictEqual(k.transform.rotation.value, 0);
+});
+test('F1 · capa con padre: Fijo a mitad congela la pose visible y recupera el padre con compensación', async () => {
+  const { h, c } = setup();
+  const parent = c.layers.addNull(); parent.transform.position.setValue([300, 100]);
+  const k = shape(c, 'hija', [40, 40], [100, 0]); k._parent = parent;
+  sel(c, [k]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  c.time = 1; const visible = at(k, 1);
+  sel(c, [k]); ok(h.call('assign', { mode: 'fixed' }));
+  assert.strictEqual(k.parent, parent);
+  const world = MockAE.apply(MockAE.world(k, 1), k.transform.anchorPoint.value);
+  assert.ok(Math.hypot(world[0] - visible[0], world[1] - visible[1]) < 0.01, 'misma pose en la composición');
 });
