@@ -149,6 +149,43 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 - Con el puntero quieto sobre Simular, la ayuda tapaba el resultado («Simulado en…») y los errores: ahora el resultado se
   mantiene visible unos segundos. Regresión `panel: con el puntero quieto sobre Simular…` (falla con el código anterior).
 
+## Batería de escenas del motor (sesión 2)
+
+Comandos:
+
+- Batería completa (retoma desde el último lote guardado en `qa/battery/state/`): `node tools/battery/run.js --workers 3`
+- Lote piloto sin guardar (10 escenas por familia): `node tools/battery/run.js --pilot`
+- Repetir un caso por semilla (y reducirlo si falla): `node tools/battery/run.js --family <familia> --seed <n>`
+- Volver a comprobar con el código actual los fallos guardados: `node tools/battery/recheck.js [pase1/failures]`
+- Resumen del progreso guardado: `node tools/battery/run.js --summary`
+
+15 familias con oráculo propio (`tools/battery/families.js`) y comprobaciones genéricas (`lib.js`): valores finitos,
+longitud de trayectorias, saltos imposibles, contención con paredes cerradas, penetración entre contornos visibles (SAT).
+Determinismo: cada 10.ª escena se repite y se comparan las trayectorias byte a byte. Estrés: 12 escenas extremas aparte.
+
+### Lote 1 (motor de la 1.2.x) — `qa/battery/pase1/summary.json` y `qa/battery/pase1/failures/`
+
+10 800 escenas distintas · 1 080 repeticiones de determinismo (0 discrepancias) · 102 escenas con fallo.
+
+| Grupo | Escenas | Causa | Resolución |
+|---|---|---|---|
+| Inercia con impulsos ≥ 20000 px/s y giros de 100000°/s (piloto) | — | **Motor**: Box2D recortaba el avance a 2 m y el giro a 90° por subpaso | **B1** (`maxTranslation` 40 m, `maxRotation` 12π) |
+| Pilas con densidades muy distintas (piloto) | — | **Motor**: penetración hasta 40 px desde 1000:1 | **B2** calidad mínima según la relación y límite de relación, con aviso |
+| Anillo dinámico fino con partículas rápidas (piloto) | — | **Motor**: bala contra bala sin choque continuo; partículas apretadas a través de la pared | **B3** solo cuerpos compactos son bala; calidad mínima pared/velocidad |
+| Caída libre con gravedad 1 px/s² | 4 | **Motor**: Box2D duerme cuerpos por debajo de 0,5 px/s | **B4** umbrales de reposo 0,1 px/s y 0,4°/s |
+| Inicios superpuestos | 16 | **Motor**: separación a 6000–14000 px/s, peor a más calidad | **B5** corrección de posición limitada a 800 px/s |
+| Pilas con densidades 0,01–200 y gravedad 1750–2500 | 3 | **Motor**: umbrales de B2 medidos solo con gravedad terrestre | **B6** calidad y límite escalados con la gravedad |
+| Contención en el fotograma 0 | 29 | Generador: formas giradas que empezaban fuera | Generador corregido |
+| Fuerza acotada a un cuerpo/emisor | 36 | Generador: el cuerpo empujado cruzaba los carriles de los demás | Generador corregido |
+| Dispersión de partículas | 6 | Oráculo: partículas desviadas por otras cercanas | Oráculo corregido |
+| Pared fina dinámica | 3 | Oráculo: la tabla gira con el impacto (no hay cruce) | Oráculo: cruce real entre fotogramas |
+| Cadena | 1 | Tolerancia: el error crece con g·dt²·eslabones | Tolerancia ajustada |
+| Duplicados | 2 | Oráculo: el obstáculo lleva la copia contra el original entre dos fotogramas | Oráculo corregido; la identidad era independiente |
+| Contención / pilas (penetración) | 6 | Resueltas por B2–B6 | — |
+
+`node tools/battery/recheck.js pase1/failures` con el código actual: las 102 pasan. Regresiones B1–B6 en
+`test/engine-limits.test.js` (16 pruebas: 8 fallan con el motor de la 1.2.x; 4 con el anterior a B4–B6).
+
 ## Registro de trabajo
 
 - Sesión 1 (QA): auditoría, reproducción de F1–F5. F1 corregido con registro de claves por capa; 19 pruebas de regresión
