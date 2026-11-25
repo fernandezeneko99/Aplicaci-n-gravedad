@@ -105,6 +105,50 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
   vuelve. Ventilador con «A todas las capas» apagado y «Solo a la capa» = A: solo A se mueve; borrar A: aviso.
   Cambiar de composición mientras simula una escena larga: las claves aparecen en la composición original.
 
+- **AE-7 · Duplicar a mano un círculo con Gravedad aplicada.** Capa de forma «bola» (elipse 80, x=640 y=200), Dinámico.
+  1. Antes de simular, Ctrl/Cmd+D. Resultado esperado: la copia tiene los mismos 8 controles «Gravedad ·» con los mismos
+     valores; Controles de efectos de la copia no muestra controles repetidos.
+  2. Sin mover la copia, Simular. Resultado observado en el modelo: las dos caen exactamente superpuestas, como un único
+     círculo (**F6, abierto**). Resultado esperado tras corregir F6: aviso «bola y su copia empiezan en el mismo sitio».
+  3. Mover la copia a x=800 en el fotograma inicial y Simular: dos círculos que caen y chocan entre sí sin solaparse.
+  4. Simular, después duplicar la bola ya simulada (la copia lleva sus claves), mover la copia en 0 s a x=900 y re-simular:
+     la copia cae desde x=900.
+  5. Borrar: la bola original queda sin claves en su pose de partida; la copia recupera las claves que heredó (Gravedad no
+     sabe que eran de la simulación) y el aviso debe nombrarla una sola vez (**F7, abierto**).
+  6. Ctrl/Cmd+Z tras cada paso deja la composición como estaba.
+- **AE-8 · Dinámico → Fijo → Dinámico revisando los controladores.** «bola» Dinámico con Densidad 3, Fricción 0,7,
+  Rebote 0,5, Impulso 200, Dirección del impulso 45°, Giro inicial 30. Simular. Repetir tres veces, una por vía:
+  botones Fijo/Dinámico del panel, segmento Tipo del inspector, desplegable «Gravedad · Tipo» en Controles de efectos.
+  1. Cursor en 0,8 s → pasar a Fijo. Esperado: «Gravedad · Tipo» = Fijo; Posición sin claves, en la pose visible a 0,8 s;
+     siguen 8 controles con los mismos valores. Por la vía de Controles de efectos, el cambio de claves ocurre al pulsar
+     Simular y el panel muestra antes «Tipo cambiado en bola».
+  2. Volver a Dinámico. Esperado: «Gravedad · Tipo» = Dinámico; siguen 8 controles, los valores intactos (también el impulso).
+  3. Simular. Esperado: cae desde la pose congelada de 0,8 s (no desde la original, que solo se recupera con Ctrl/Cmd+Z) y con
+     el impulso de 200 px/s a 45°.
+  4. Repetir el paso 1 con el cursor en 0 s: queda en su pose de partida.
+  5. El inspector del panel y el medidor reflejan cada estado sin parpadeos («Simulada · al día» / «Tipo cambiado…»).
+
+## Cobertura de los casos de la lista original (revisión antes de cerrar QA)
+
+| Caso | Procedimiento en After | Cubierto por pruebas automatizadas (modelo de After) | Pendiente dentro de After Effects |
+|---|---|---|---|
+| Duplicar a mano un círculo con Gravedad aplicada | **AE-7** (nuevo). AE-1 solo duplicaba B, un rectángulo, y solo miraba Borrar | Copia con controles idénticos y dos círculos simulados (`caso 1a`); copia de un círculo ya simulado y movida (`caso 1c`); Borrar no toca una copia sin registro (`F1 · duplicar una capa simulada`, rectángulo); copia con controles, ambas se simulan (`variants-host`) | AE-7 completo; F6 y F7 sin corregir |
+| Controladores al pasar de Dinámico a Fijo y de vuelta a Dinámico | **AE-8** (nuevo). AE-1/AE-2 solo pasaban a Fijo o Desactivado, sin volver ni revisar los controles | `caso 2` × 3 vías (panel, inspector, Controles de efectos): tipo, 8 controles sin duplicar, valores intactos, pose congelada, impulso conservado; `F1 · pasar a Fijo y volver a Dinámico` (cursor en 0 s); reasignar no duplica controles (`host.test`) | AE-8 completo: menú desplegable real (`setPropertyParameters`), Deshacer, aspecto en Controles de efectos |
+
+### Hallazgos abiertos de esta revisión
+
+| # | Hallazgo | Impacto | Estado |
+|---|---|---|---|
+| F6 | Un círculo duplicado sin mover empieza exactamente sobre el original y ambos caen superpuestos como uno (Box2D no puede separar dos círculos concéntricos idénticos) | Resultado incorrecto silencioso | Abierto. Propuesta: avisar al simular de cuerpos con la misma pose y forma |
+| F7 | Tras Borrar, una copia restaurada aparece también como «no tocada» en el aviso, y con el mismo nombre que el original | Mensaje confuso | Abierto. Propuesta: excluir del aviso las capas restauradas y añadir el índice de capa |
+
+### Corregido durante esta revisión (panel)
+
+- El aviso «Desactualizada» / «Tipo cambiado en …» parpadeaba con cada refresco ligero: se conserva el último resumen
+  completo de la misma composición y simulación.
+- Con el puntero quieto sobre Simular, la ayuda tapaba el resultado («Simulado en…») y los errores: ahora el resultado se
+  mantiene visible unos segundos. Regresión `panel: con el puntero quieto sobre Simular…` (falla con el código anterior).
+
 ## Registro de trabajo
 
 - Sesión 1 (QA): auditoría, reproducción de F1–F5. F1 corregido con registro de claves por capa; 19 pruebas de regresión
@@ -117,9 +161,9 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 
 | Capa | Qué | Resultado | Dónde |
 |---|---|---|---|
-| Código | `npm test`: 257 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 257/257 | Contenedor Linux, Node 22, Chromium de Playwright |
-| Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.0.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
-| Paquete | Panel ejecutado desde el `.zxp` extraído | 8/8 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
+| Código | `npm test`: 263 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 263/263 | Contenedor Linux, Node 22, Chromium de Playwright |
+| Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.1.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
+| Paquete | Panel ejecutado desde el `.zxp` extraído | 9/9 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
 | After Effects real | Instalación, carga del panel, AE-1 … AE-6, Deshacer/Rehacer, guardar y reabrir | **Pendiente** (no hay After en este entorno) | Ver procedimientos |
 
 Re-simular usa un atajo cuando la propiedad tiene exactamente las claves escritas (no las recorre); Borrar solo lee valores.
@@ -139,7 +183,9 @@ emojis, capa con remapeo de tiempo.
 
 ## Siguiente acción
 
-1. **Necesita intervención (entorno con After Effects):** instalar `dist/Gravedad-1.2.0.zxp` sobre una instalación con 0.5.0
+0. Corregir F6 (aviso de cuerpos superpuestos al simular) y F7 (aviso de Borrar), con regresión cada uno.
+
+1. **Necesita intervención (entorno con After Effects):** instalar `dist/Gravedad-1.2.1.zxp` sobre una instalación con 0.5.0
    (mismo id `com.eneko.gravedad`) en macOS y Windows con ZXP Installer, comprobar que el panel abre desde
    Ventana › Extensiones › Gravedad y ejecutar AE-1 … AE-6 en AE 2022, 2024 y 2025. Anotar aquí cada resultado.
 2. Mientras tanto (ejecutable aquí): revisar los mensajes del panel en tamaños 260–600 px con secciones abiertas y repasar

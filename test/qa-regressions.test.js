@@ -456,3 +456,51 @@ test('re-simular sin cambios no lee los valores de las claves (atajo)', async ()
   await Pipeline.simulate(io(h));
   assert.strictEqual(reads, 0);
 });
+
+// ---------- Casos de la lista original: duplicar un círculo y Dinámico → Fijo → Dinámico ----------
+function circle(c, name, pos) { return shape(c, name, [80, 80], pos, true); }
+const effects = (l) => l.property('ADBE Effect Parade')._children.map((e) => [e.name, e.property(1).value]);
+test('caso 1a · duplicar un círculo con Gravedad antes de simular: la copia hereda los controles y es otro círculo', async () => {
+  const { h, c } = setup();
+  const a = circle(c, 'bola', [640, 200]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  const d = a.duplicate(); d.transform.position.setValue([800, 200]);
+  assert.deepStrictEqual(plain(effects(d)), plain(effects(a)));
+  const out = await Pipeline.simulate(io(h));
+  assert.deepStrictEqual(out.scene.bodies.map((b) => b.shape.kind), ['circle', 'circle']);
+  assert.strictEqual(out.summary.written, 2);
+});
+test('caso 1c · duplicar un círculo ya simulado y moverlo en el inicio: la copia simula desde su nueva pose', async () => {
+  const { h, c } = setup();
+  const a = circle(c, 'bola', [640, 200]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  const d = a.duplicate(); d.transform.position.keys[0].v = [900, 200];
+  const out = await Pipeline.simulate(io(h));
+  assert.deepStrictEqual(out.host.bodies.find((b) => b.id === String(d.id)).pose, { x: 900, y: 200, a: 0 });
+  ok(h.call('clear'));
+  assert.strictEqual(a.transform.position.numKeys, 0, 'el original vuelve a su pose sin claves');
+});
+for (const via of ['panel', 'inspector', 'controles']) {
+  test('caso 2 · Dinámico → Fijo → Dinámico por ' + via + ': controladores intactos y sin duplicar', async () => {
+    const { h, c } = setup();
+    const a = circle(c, 'bola', [640, 200]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+    sel(c, [a]); ok(h.call('bodies', { values: { density: 3, friction: 0.7, bounce: 0.5, impulse: 200, impulseAngle: 45, spinStart: 30 } }));
+    await Pipeline.simulate(io(h));
+    const before = plain(effects(a)), tipo = fx(a).property(1);
+    c.time = 0.8; const visible = plain(a.transform.position.valueAtTime(0.8));
+    if (via === 'panel') { sel(c, [a]); ok(h.call('assign', { mode: 'fixed' })); }
+    else if (via === 'inspector') { sel(c, [a]); ok(h.call('bodies', { values: { type: 'fixed' } })); }
+    else { tipo._value = 2; await Pipeline.simulate(io(h)); }
+    assert.strictEqual(tipo.value, 2); assert.strictEqual(a.transform.position.numKeys, 0);
+    assert.deepStrictEqual(plain(a.transform.position.value), visible, 'Fijo en la pose de 0,8 s');
+    if (via === 'panel') { sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' })); }
+    else if (via === 'inspector') { sel(c, [a]); ok(h.call('bodies', { values: { type: 'dynamic' } })); }
+    else tipo._value = 1;
+    const out = await Pipeline.simulate(io(h)), b = out.host.bodies[0];
+    const after = plain(effects(a));
+    assert.strictEqual(after.length, 8, 'sin controles duplicados');
+    assert.deepStrictEqual(after.filter((e) => e[0] !== 'Gravedad · Tipo'), before.filter((e) => e[0] !== 'Gravedad · Tipo'), 'valores intactos');
+    assert.strictEqual(tipo.value, 1);
+    assert.strictEqual(b.type, 'dynamic'); assert.deepStrictEqual([b.pose.x, b.pose.y], visible, 'vuelve a caer desde la pose congelada');
+    assert.ok(Math.abs(b.velocity.x - 141.421) < 0.01 && Math.abs(b.velocity.a - 30) < 1e-6, 'el impulso se conserva');
+  });
+}

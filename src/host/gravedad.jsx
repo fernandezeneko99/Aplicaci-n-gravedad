@@ -7,7 +7,7 @@ if (typeof JSON === 'undefined') $.evalFile(new File(new File($.fileName).parent
 $.evalFile(new File(new File($.fileName).parent.fsName + '/geometry.jsx'));
 
 var Gravedad = (function () {
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
   var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:', sample: 'gravedad-forma de ejemplo' };
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',

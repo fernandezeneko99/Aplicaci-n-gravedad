@@ -264,3 +264,19 @@ test('panel: tres anchos con avisos, cambio de tipo pendiente y secciones abiert
     } finally { await browser.close(); }
   }
 });
+
+test('panel: con el puntero quieto sobre Simular, el resultado no queda tapado por la ayuda', { timeout: 30000 }, async () => {
+  const { h, add } = scene();
+  const b = add('B', RECT, [40, 40], [400, 100]); b.selected = true;
+  const { browser, page, errors } = await open(h);
+  try {
+    await waitText(page, '#compChip', /Escena/);
+    await page.click('#dynamic'); await page.waitForSelector('#status.ok');
+    await page.hover('#simulate'); await page.click('#simulate');
+    await waitText(page, '#status', /Simulado en/, 20000);
+    await new Promise((r) => setTimeout(r, 600));
+    await page.mouse.move((await page.locator('#simulate').boundingBox()).x + 30, (await page.locator('#simulate').boundingBox()).y + 20);
+    assert.match(await text(page, '#status'), /Simulado en/, 'sigue visible con el puntero encima');
+    assert.deepStrictEqual(errors, []);
+  } finally { await browser.close(); }
+});

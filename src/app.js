@@ -1,10 +1,10 @@
 /* Gravedad · panel. Orquesta After (host/gravedad.jsx), el motor (engine/*.js) y el medidor (meter.js). */
 (function () {
   'use strict';
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
   var $ = function (id) { return document.getElementById(id); };
   var all = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
-  var busy = false, simulating = false, cancelRequested = false, simStarted = 0, last = null, summary = null, playing = false, raf = 0;
+  var deepInfo = null, busy = false, simulating = false, cancelRequested = false, simStarted = 0, last = null, summary = null, playing = false, raf = 0;
   var CONTROLS = ['dynamic', 'fixed', 'force', 'particles', 'clear', 'environment', 'walls', 'join', 'jointType', 'preview'];
   var MATERIALS = [
     { name: 'Goma', density: 1.1, friction: 0.9, bounce: 0.7 }, { name: 'Pelota', density: 0.4, friction: 0.6, bounce: 0.88 },
@@ -77,7 +77,12 @@
 
   // ---------- Mensajes ----------
   var saved = null;
-  function status(message, kind) { var s = $('status'); s.textContent = message; s.className = kind || ''; saved = null; }
+  // Un resultado o un error no debe quedar tapado por la ayuda del control sobre el que sigue el puntero.
+  var hintHold = { until: 0, el: null };
+  function status(message, kind) {
+    var s = $('status'); s.textContent = message; s.className = kind || ''; saved = null;
+    if (kind === 'ok' || kind === 'error') hintHold = { until: Date.now() + 4000, el: hovered };
+  }
   function warnings(list) {
     var ul = $('warnings'); ul.textContent = '';
     (list || []).slice(0, 8).forEach(function (w) { var li = document.createElement('li'); li.textContent = w; ul.appendChild(li); });
@@ -121,8 +126,14 @@
     var b = document.createElement('b'); b.textContent = c.name; chip.appendChild(b);
     chip.appendChild(document.createTextNode(' · ' + c.width + '×' + c.height + ' · ' + num(c.fps, 2) + ' fps · ' + (counts.length ? counts.join(' · ') : 'sin cuerpos')));
     // Medidor y estado de la simulación: si cambió el área de trabajo o la escena, la simulación está desactualizada.
+    // El resumen ligero no calcula «desactualizada» ni los cambios de tipo pendientes: se conserva lo último que dijo el
+    // resumen completo de esta misma composición y simulación (antes el aviso parpadeaba hasta el siguiente completo).
+    var deepKey = c.id + '|' + (data.sim ? data.sim.sig + '|' + data.sim.date : '-');
+    if (data.pendingTypes !== undefined) deepInfo = { key: deepKey, stale: !!(data.sim && data.sim.stale), pending: data.pendingTypes };
+    var known = deepInfo && deepInfo.key === deepKey ? deepInfo : null;
+    if (data.pendingTypes === undefined) data.pendingTypes = known ? known.pending : [];
     var sim = data.sim, sameRange = sim && sim.frames === c.frames && Math.abs(sim.start - c.start) < 1e-6;
-    var stale = !!(sim && (sim.stale || !sameRange));
+    var stale = !!(sim && ((sim.stale !== undefined ? sim.stale : known && known.stale) || !sameRange));
     if (!simulating) {
       meter.set({ frames: c.frames, first: first, simulated: sim ? Math.min(sim.frames, c.frames) : 0, stale: stale, running: null });
       var pending = data.pendingTypes || [];
@@ -404,8 +415,12 @@
   };
 
   // ---------- Ayudas al pasar el ratón ----------
+  var hovered = null;
   document.addEventListener('mouseover', function (e) {
     var el = e.target.closest && e.target.closest('[data-hint]'), s = $('status');
+    // Mientras se muestra un resultado reciente, la ayuda solo aparece si el puntero entra en otro control.
+    if (el && el === hintHold.el && Date.now() < hintHold.until) return;
+    hovered = el;
     if (!el) { if (saved && s.className === 'hint') { s.textContent = saved.text; s.className = saved.cls; } saved = null; return; }
     if (!saved) saved = { text: s.textContent, cls: s.className };
     s.textContent = el.getAttribute('data-hint'); s.className = 'hint';
