@@ -76,6 +76,8 @@ Documento vivo de calidad. Al retomar: leer «Siguiente acción», contrastar co
 | Llamadas al DOM · resumen ligero | 300 cuerpos + 40 capas | 4 880 | 2 780 (−43 %) | `scratchpad/hostbench.js` (contador en el modelo simulado) |
 | Llamadas al DOM · resumen completo (cada ≥ 4 s) | ídem | 27 574 | 16 634 (−40 %) | ídem |
 | Llamadas al DOM · leer escena | ídem | 83 462 | 36 732 (−56 %) | ídem |
+| Llamadas al DOM · re-simular (sin contar las internas de `setValuesAtTimes`) | 300 cuerpos, 150 fot. | 170 473 | 64 033 (−62 %) | `scratchpad/applybench.js` |
+| Llamadas al DOM · Borrar | ídem | 119 757 | 84 577 (−29 %) | ídem |
 | Motor · 500 cuerpos, 300 fot. | — | 10,0 s | 10,8 s (+8 %, coste de F3) | `scratchpad/bench.js` (mediana de 3) |
 | Motor · 400 partículas, 300 fot. | — | 4,2 s | 4,8 s (+14 %, coste de F3) | ídem |
 
@@ -115,10 +117,13 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 
 | Capa | Qué | Resultado | Dónde |
 |---|---|---|---|
-| Código | `npm test`: 252 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 252/252 | Contenedor Linux, Node 22, Chromium de Playwright |
+| Código | `npm test`: 256 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 256/256 | Contenedor Linux, Node 22, Chromium de Playwright |
 | Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.0.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
 | Paquete | Panel ejecutado desde el `.zxp` extraído | 7/7 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
 | After Effects real | Instalación, carga del panel, AE-1 … AE-6, Deshacer/Rehacer, guardar y reabrir | **Pendiente** (no hay After en este entorno) | Ver procedimientos |
+
+Re-simular usa un atajo cuando la propiedad tiene exactamente las claves escritas (no las recorre); Borrar solo lee valores.
+Regresiones: clave añadida entre simulaciones, tramo más corto, punto de entrada más tarde, atajo sin lecturas de valor.
 
 Casos de editor añadidos en esta tanda: metraje con archivo ausente (caja + aviso), nombres con tildes, comillas, barras y
 emojis, capa con remapeo de tiempo.

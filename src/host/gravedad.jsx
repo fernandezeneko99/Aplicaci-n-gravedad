@@ -707,23 +707,30 @@ var Gravedad = (function () {
     }
     var end = times[times.length - 1] + 1 / c.frameRate, first = rec.from, last = rec.from + n - 1, fps = c.frameRate, start = c.workAreaStart;
     var keep = function (tk) { var k = Math.round((tk - start) * fps); return k >= first && k <= last && Math.abs(times[k] - tk) < 1e-4; };
+    // Con registro: se quitan solo las claves que backupLayer marco como sobrantes. Sin registro (particulas): todas.
+    var clean = function (prop) { if (record && record.remove) removeTimes(prop, record.remove[prop.matchName] || []); else removeKeysIn(prop, t[0], end, keep); };
     if (P.dimensionsSeparated) {
       var X = tr.property('ADBE Position_0'), Y = tr.property('ADBE Position_1'), xs = [], ys = [];
       for (i = 0; i < n; i++) { xs.push(pos[i][0]); ys.push(pos[i][1]); }
       X.expressionEnabled = false; Y.expressionEnabled = false;
-      removeKeysIn(X, t[0], end, keep); removeKeysIn(Y, t[0], end, keep);
+      clean(X); clean(Y);
       X.setValuesAtTimes(t, xs); Y.setValuesAtTimes(t, ys);
       if (record) { hashes(record, 'ADBE Position_0', xs); hashes(record, 'ADBE Position_1', ys); }
     } else {
       if (P.expressionEnabled) P.expressionEnabled = false;
-      removeKeysIn(P, t[0], end, keep);
+      clean(P);
       P.setValuesAtTimes(t, pos);
       if (record) hashes(record, 'ADBE Position', pos);
     }
     if (R.expressionEnabled) R.expressionEnabled = false;
-    removeKeysIn(R, t[0], end, keep);
+    clean(R);
     R.setValuesAtTimes(t, rot);
-    if (record) { hashes(record, 'ADBE Rotate Z', rot); record.from = rec.from; record.n = n; record.start = c.workAreaStart; record.fps = c.frameRate; }
+    if (record) {
+      hashes(record, 'ADBE Rotate Z', rot); record.from = rec.from; record.n = n; record.start = c.workAreaStart; record.fps = c.frameRate; delete record.remove;
+      // Cuantas claves quedan antes y despues del tramo (para el atajo de la proxima vez): 2 llamadas por propiedad.
+      var mp = motionProps(l);
+      for (i = 0; i < mp.length; i++) { var pr = record.props[mp[i].matchName], b = mp[i].nearestKeyIndex(t[0]) - 1; pr.before = b; pr.after = mp[i].numKeys - b - n; }
+    }
   }
   function hashes(record, name, values) {
     var pr = record.props[name] || (record.props[name] = { h: [], orig: [] }), out = [];
@@ -788,7 +795,8 @@ var Gravedad = (function () {
           unlocked(l, function () {
             // La rotacion se escribe como giro relativo a la de partida; se lee antes de quitar el padre.
             var rot0 = rotationGuess(l, times[rec.from]);
-            var record = backupLayer(l, c, store, times[rec.from], end);
+            var first = rec.from, lastF = rec.from + rec.data.length / 3 - 1;
+            var record = backupLayer(l, c, store, times[rec.from], end, function (tk) { var kk = Math.round((tk - c.workAreaStart) * c.frameRate); return kk >= first && kk <= lastF && Math.abs(times[kk] - tk) < 1e-4; });
             if (l.parent) l.parent = null;
             writeMotion(l, c, rec, rot0, times, record); written++; now[String(l.id)] = true;
             removeMarkers(l);
@@ -900,29 +908,46 @@ var Gravedad = (function () {
     var k = Math.round((t - rec.start) * rec.fps), j = k - rec.from;
     return j >= 0 && j < pr.h.length && Math.abs(rec.start + k / rec.fps - t) < 1e-3 && pr.h[j] === valueHash(v);
   }
-  // Antes de escribir: se guarda lo que la capa tenia (solo la primera vez) y las claves del usuario que se van a tapar.
-  function backupLayer(l, c, store, from, to) {
-    var id = String(l.id), rec = store.layers[id], props = motionProps(l), i, j;
+  // Antes de escribir: se guarda lo que la capa tenia (solo la primera vez) y las claves del usuario que se van a tapar,
+  // y se decide que claves sobran. keep(t) dice si t es un fotograma que la nueva simulacion va a escribir.
+  function backupLayer(l, c, store, from, to, keep) {
+    var id = String(l.id), rec = store.layers[id], props = motionProps(l), i, j, fresh = !rec;
     if (!rec) {
-      rec = store.layers[id] = { props: {}, parent: l.parent ? String(l.parent.id) : null, from: 0, start: c.workAreaStart, fps: c.frameRate };
+      rec = store.layers[id] = { props: {}, parent: l.parent ? String(l.parent.id) : null, from: 0, n: 0, start: c.workAreaStart, fps: c.frameRate };
       for (j = 0; j < props.length; j++) {
         var q = props[j], st = { h: [], orig: [], expr: q.canSetExpression && q.expressionEnabled ? true : false };
         if (!q.numKeys) st.value = q.value;
         rec.props[q.matchName] = st;
       }
     }
+    // Las claves de la simulacion anterior pueden empezar antes (si la capa entra ahora mas tarde).
+    var lo = fresh ? from : Math.min(from, rec.start + rec.from / rec.fps);
+    rec.remove = {};
     for (j = 0; j < props.length; j++) {
-      var p = props[j], pr = rec.props[p.matchName];
+      var p = props[j], pr = rec.props[p.matchName], gone = rec.remove[p.matchName] = [];
       if (!pr) pr = rec.props[p.matchName] = { h: [], orig: [] };
-      for (i = 1; i <= p.numKeys; i++) {
+      var n = p.numKeys, prevN = pr.h.length, b = pr.before || 0;
+      // Atajo: la propiedad tiene exactamente las claves que se escribieron la ultima vez (mas las que ya estaban fuera
+      // del tramo). Nadie anadio claves: no hace falta leerlas una a una.
+      if (!fresh && prevN && n === prevN + b + (pr.after || 0) && Math.abs(p.keyTime(b + 1) - (rec.start + rec.from / rec.fps)) < 1e-4 && Math.abs(p.keyTime(b + prevN) - (rec.start + (rec.from + prevN - 1) / rec.fps)) < 1e-4) {
+        for (i = 0; i < prevN; i++) { var tg = rec.start + (rec.from + i) / rec.fps; if (!keep(tg)) gone.push(tg); }
+        continue;
+      }
+      for (i = 1; i <= n; i++) {
         var t = p.keyTime(i);
-        if (t < from - 1e-4 || t > to + 1e-4 || generated(rec, pr, t, p.keyValue(i))) continue;
+        if (t < lo - 1e-4 || t > to + 1e-4) continue;
+        var mine = !fresh && generated(rec, pr, t, p.keyValue(i));
+        if (!keep(t)) gone.push(t);
+        if (mine) continue;
         var dup = false;
         for (var o = 0; o < pr.orig.length; o++) if (Math.abs(pr.orig[o].t - t) < 1e-4) { dup = true; break; }
         if (!dup) pr.orig.push(keyInfo(p, i));
       }
     }
     return rec;
+  }
+  function removeTimes(p, times) {
+    for (var i = times.length - 1; i >= 0; i--) { if (!p.numKeys) return; var k = p.nearestKeyIndex(times[i]); if (Math.abs(p.keyTime(k) - times[i]) < 1e-4) p.removeKey(k); }
   }
   // Quita las claves de Gravedad y devuelve las originales. mode: 'restore' (como antes de simular) o 'freeze'
   // (Fijo en la pose visible en el instante actual). Devuelve true si toco la capa.
@@ -936,8 +961,15 @@ var Gravedad = (function () {
       for (j = 0; j < props.length; j++) frozen.push(props[j].valueAtTime(tf, false));
     }
     for (j = 0; j < props.length; j++) {
-      var p = props[j], pr = rec.props[p.matchName];
-      for (i = p.numKeys; i >= 1; i--) { if (generated(rec, pr, p.keyTime(i), p.keyValue(i))) p.removeKey(i); else userKeys++; }
+      var p = props[j], pr = rec.props[p.matchName], n = p.numKeys, b = pr ? pr.before || 0 : 0, hn = pr ? pr.h.length : 0;
+      // Atajo: si la propiedad tiene exactamente las claves escritas, sus tiempos se conocen; solo se lee el valor
+      // (para respetar las que el usuario haya editado).
+      if (hn && n === hn + b + (pr.after || 0) && Math.abs(p.keyTime(b + 1) - (rec.start + rec.from / rec.fps)) < 1e-4 && Math.abs(p.keyTime(b + hn) - (rec.start + (rec.from + hn - 1) / rec.fps)) < 1e-4) {
+        for (i = b + hn; i > b; i--) { if (pr.h[i - b - 1] === valueHash(p.keyValue(i))) p.removeKey(i); else userKeys++; }
+        userKeys += b + (pr.after || 0);
+        continue;
+      }
+      for (i = n; i >= 1; i--) { if (generated(rec, pr, p.keyTime(i), p.keyValue(i))) p.removeKey(i); else userKeys++; }
     }
     var hasOwn = false;
     for (j = 0; j < props.length; j++) { var pr2 = rec.props[props[j].matchName]; if (pr2 && pr2.orig.length) hasOwn = true; }

@@ -417,3 +417,42 @@ test('capa con remapeo de tiempo: se simula y Borrar la deja como estaba', async
   assert.ok(a.transform.position.numKeys > 5);
   ok(h.call('clear')); assert.deepStrictEqual(plain(a.transform.position.value), [300, 100]);
 });
+
+// ---------- Re-simular rápido (atajo sin recorrer claves) sin perder nada ----------
+test('re-simular tras añadir una clave propia: la clave se respalda y Borrar la devuelve', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  a.transform.position.setValueAtTime(1.234, [5, 5]);
+  await Pipeline.simulate(io(h));
+  assert.ok(!a.transform.position.keys.some((k) => Math.abs(k.t - 1.234) < 1e-6), 'la simulación manda mientras está aplicada');
+  ok(h.call('clear'));
+  assert.deepStrictEqual(a.transform.position.keys.map((k) => +k.t.toFixed(3)), [1.234], 'la clave del usuario vuelve');
+});
+test('re-simular con un tramo más corto quita la cola sobrante de la anterior', async () => {
+  const { h, c } = setup({ duration: 6 });
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  ok(h.call('world', { gravity: 0, floor: false, sides: false }));
+  sel(c, [a]); ok(h.call('bodies', { values: { impulse: 100, impulseAngle: 90 } }));
+  await Pipeline.simulate(io(h));
+  const before = a.transform.position.numKeys;
+  c.workAreaDuration = 2; await Pipeline.simulate(io(h));
+  assert.strictEqual(a.transform.position.numKeys, 50, 'antes ' + before);
+  ok(h.call('clear')); assert.strictEqual(a.transform.position.numKeys, 0);
+});
+test('re-simular con el punto de entrada más tarde no deja claves viejas antes del nuevo inicio', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  a.inPoint = 1; await Pipeline.simulate(io(h));
+  assert.ok(a.transform.position.keys[0].t >= 1 - 1e-6, 'primera clave en ' + a.transform.position.keys[0].t);
+  ok(h.call('clear')); assert.strictEqual(a.transform.position.numKeys, 0);
+});
+test('re-simular sin cambios no lee los valores de las claves (atajo)', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  const P = a.transform.position, orig = P.keyValue; let reads = 0; P.keyValue = function () { reads++; return orig.apply(this, arguments); };
+  await Pipeline.simulate(io(h));
+  assert.strictEqual(reads, 0);
+});
