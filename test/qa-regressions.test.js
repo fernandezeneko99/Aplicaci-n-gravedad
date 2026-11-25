@@ -336,3 +336,19 @@ test('F5 · fuerza acotada a un emisor: solo sus partículas, no las de otro emi
   r.particles.forEach((p) => { const moved = p.data[p.data.length - 3] - p.data[0]; if (p.emitter === 'e1') assert.ok(moved > 10); else assert.ok(Math.abs(moved) < 1e-6); });
   assert.strictEqual(r.bodies.b.data.slice(-3)[0], 500);
 });
+
+// ---------- F3: dinámicos rápidos no atraviesan a otros dinámicos finos ----------
+for (const [v, r] of [[3000, 3], [8000, 8], [15000, 3]]) {
+  test('F3 · bola de radio ' + r + ' a ' + v + ' px/s contra una tabla dinámica de 3 px: no la atraviesa', () => {
+    const res = Sim.run({ fps: 25, frames: 30, width: 1920, height: 1080, world: { gravity: 0 }, bodies: [
+      { id: 't', type: 'dynamic', pose: { x: 1000, y: 540 }, shape: { kind: 'box', w: 3, h: 500 }, material: { density: 5 } },
+      { id: 'b', type: 'dynamic', pose: { x: 200, y: 540 }, shape: { kind: 'circle', r }, velocity: { x: v, y: 0 } }] });
+    for (let k = 0; k < 30; k++) assert.ok(res.bodies.b.data[k * 3] <= res.bodies.t.data[k * 3] + 2 + r, 'atraviesa en el fotograma ' + k);
+  });
+}
+test('F3 · partículas a 6000 px/s no escapan de un anillo dinámico de 4 px', () => {
+  const ring = []; for (let i = 0; i < 40; i++) { const a = i / 40 * 2 * Math.PI; ring.push([Math.cos(a) * 200, Math.sin(a) * 200]); }
+  const res = Sim.run({ fps: 25, frames: 50, width: 1920, height: 1080, world: { gravity: 0 }, bodies: [{ id: 'ring', type: 'dynamic', pose: { x: 960, y: 540 }, shape: { kind: 'stroke', thickness: 4, paths: [{ points: ring, closed: true }] }, material: { density: 20 } }],
+    emitters: [{ id: 'e', max: 60, seed: 3, shape: { kind: 'circle', r: 4 }, track: [[960, 540, 0, 600, 6000, 360, 0]], spin: 0 }] });
+  res.particles.forEach((p) => { for (let k = 0; k < p.data.length / 3; k++) { const rx = res.bodies.ring.data[(p.from + k) * 3], ry = res.bodies.ring.data[(p.from + k) * 3 + 1]; assert.ok(Math.hypot(p.data[k * 3] - rx, p.data[k * 3 + 1] - ry) < 200, 'escapa'); } });
+});

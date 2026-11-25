@@ -259,6 +259,18 @@
     return Math.abs(area(out)) > Math.abs(area(q)) * 0.25 && area(out) > 0 ? out : q;
   }
 
+  // Grosor mínimo de una forma (px): lo que un cuerpo puede avanzar por subpaso sin riesgo de atravesar a otro.
+  function thickness(built) {
+    var t = Infinity;
+    if (built.circle) t = built.circle.r * 2;
+    for (var i = 0; i < built.pieces.length; i++) {
+      var q = built.pieces[i], minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (var k = 0; k < q.length; k++) { minX = Math.min(minX, q[k][0]); maxX = Math.max(maxX, q[k][0]); minY = Math.min(minY, q[k][1]); maxY = Math.max(maxY, q[k][1]); }
+      t = Math.min(t, maxX - minX, maxY - minY);
+    }
+    return isFinite(t) ? Math.max(0.5, t) : 1;
+  }
+
   function attach(body, built, material) {
     var def = { density: Math.max(0.0001, material.density === undefined ? 1 : material.density), friction: Math.max(0, material.friction === undefined ? 0.4 : material.friction), restitution: Math.min(1, Math.max(0, material.restitution === undefined ? 0.2 : material.restitution)) };
     var n = 0;
@@ -321,6 +333,7 @@
       if (!n) { warnings.push({ id: b.id, code: 'sin-forma' }); world.destroyBody(body); return false; }
       if (type === 'dynamic' && b.velocity) { body.setLinearVelocity(Vec2((b.velocity.x || 0) / PPM, (b.velocity.y || 0) / PPM)); body.setAngularVelocity(rad(b.velocity.a || 0)); }
       body.setUserData(b.id);
+      body.gravedadThin = thickness(item.built) / PPM;
       item.body = body; item.record = { from: k, data: [] }; item.spawnFrame = k; byId[b.id] = item;
       out.bodies[b.id] = item.record;
       live.push(item);
@@ -348,6 +361,7 @@
           if (!n) { world.destroyBody(body); continue; }
           body.setLinearVelocity(Vec2(Math.cos(dir) * v / PPM, Math.sin(dir) * v / PPM));
           body.gravedadEmitter = e.id;
+          body.gravedadThin = thickness(em.built[which]) * size / PPM;
           if (e.spin) body.setAngularVelocity(rad((r() * 2 - 1) * e.spin));
           var rec = { emitter: e.id, template: which, index: em.count, from: k, to: null, scale: round(size, 4), data: [] };
           out.particles.push(rec);
@@ -423,6 +437,17 @@
       });
     });
 
+    // Colisión continua solo donde hace falta: Box2D no la aplica entre cuerpos dinámicos salvo que sean «bala».
+    // Un cuerpo que en un subpaso avanza más de la mitad de su grosor mínimo pasa a bala; al frenar deja de serlo.
+    function guardTunneling() {
+      for (var i = 0; i < live.length; i++) {
+        var b = live[i].body;
+        if (!b || b.getType() !== 'dynamic') continue;
+        var v = b.getLinearVelocity(), travel = Math.sqrt(v.x * v.x + v.y * v.y) * dt, fast = travel > 0.5 * (b.gravedadThin || 0.02);
+        if (fast !== b.isBullet()) b.setBullet(fast);
+      }
+    }
+
     var k = 0;
     function step(count) {
       var end = Math.min(frames, k + (count || frames));
@@ -445,6 +470,7 @@
         }
         if (k === frames - 1) { k = frames; break; }
         drive(k);
+        guardTunneling();
         current = k + 1;
         for (var s = 0; s < sub; s++) { applyForces(k); world.step(dt, 8, 3); }
         for (i = 0; i < live.length; i++) {
