@@ -1,7 +1,7 @@
 /* Gravedad · panel. Orquesta After (host/gravedad.jsx), el motor (engine/*.js) y el medidor (meter.js). */
 (function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
   var $ = function (id) { return document.getElementById(id); };
   var all = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
   var busy = false, simulating = false, cancelRequested = false, last = null, summary = null, playing = false, raf = 0;

@@ -7,7 +7,7 @@ if (typeof JSON === 'undefined') $.evalFile(new File(new File($.fileName).parent
 $.evalFile(new File(new File($.fileName).parent.fsName + '/geometry.jsx'));
 
 var Gravedad = (function () {
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
   var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:' };
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
@@ -31,6 +31,8 @@ var Gravedad = (function () {
     catch (e) { return JSON.stringify({ ok: false, error: String(e.message || e), line: e.line }); }
     finally { if (quiet) try { app.endSuppressDialogs(false); } catch (ignore2) {} }
   }
+  // After no permite modificar una capa bloqueada: se desbloquea solo mientras se escribe y se vuelve a bloquear.
+  function unlocked(l, fn) { var was = false; try { was = l.locked; } catch (e) {} if (was) l.locked = false; try { return fn(); } finally { if (was) try { l.locked = true; } catch (e2) {} } }
   function undo(name, fn) { app.beginUndoGroup(name); try { return fn(); } finally { app.endUndoGroup(); } }
   function comp(passive) {
     var c = app.project && app.project.activeItem;
@@ -257,7 +259,7 @@ var Gravedad = (function () {
     if (!layers.length) throw Error('Selecciona capas en la l\u00ednea de tiempo.');
     for (var i = 0; i < layers.length; i++) validate(layers[i]);
     return undo('Gravedad \u00b7 Asignar', function () {
-      for (var j = 0; j < layers.length; j++) makeBody(layers[j], type);
+      for (var j = 0; j < layers.length; j++) (function (l) { unlocked(l, function () { makeBody(l, type); }); }(layers[j]));
       var s = summary(c); s.assigned = layers.length; return s;
     });
   }
@@ -274,14 +276,17 @@ var Gravedad = (function () {
       // After no garantiza el orden de seleccion: la union va en la capa que se mueve (la que no es Fija).
       var a = layers[0], b = layers.length > 1 ? layers[1] : null;
       if (b && isBody(a) && bodyType(a) === 'fixed' && !(isBody(b) && bodyType(b) === 'fixed')) { var swap = a; a = b; b = swap; }
-      if (!isBody(a)) makeBody(a, TYPE.dynamic);
-      if (b && !isBody(b)) makeBody(b, TYPE.fixed);
-      addMenu(a, N.joint, ['Pivote', 'Barra r\u00edgida', 'Muelle', 'Ninguna'], kind);
-      control(a, N.joint).property(1).setValue(kind);
-      addControl(a, 'ADBE Layer Control', N.jointTo);
-      control(a, N.jointTo).property(1).setValue(b ? b.index : 0);
-      addControl(a, 'ADBE Slider Control', N.stiffness, 2);
-      addControl(a, 'ADBE Slider Control', N.damping, 0.2);
+      if (b && !isBody(b)) unlocked(b, function () { makeBody(b, TYPE.fixed); });
+      unlocked(a, function () {
+        if (!isBody(a)) makeBody(a, TYPE.dynamic);
+        addMenu(a, N.joint, ['Pivote', 'Barra r\u00edgida', 'Muelle', 'Ninguna'], kind);
+        control(a, N.joint).property(1).setValue(kind);
+        addControl(a, 'ADBE Layer Control', N.jointTo);
+        // Apuntar a si misma = colgada de su anclaje. "Ninguna" queda para "la capa unida ya no existe".
+        control(a, N.jointTo).property(1).setValue(b ? b.index : a.index);
+        addControl(a, 'ADBE Slider Control', N.stiffness, 2);
+        addControl(a, 'ADBE Slider Control', N.damping, 0.2);
+      });
       var s = summary(c); s.joined = b ? 2 : 1; return s;
     });
   }
@@ -314,7 +319,15 @@ var Gravedad = (function () {
     return undo('Gravedad \u00b7 Ajustar cuerpos', function () {
       for (var i = 0; i < sel.length; i++) {
         var l = sel[i];
-        if (!isBody(l)) { if (!values.type) continue; validate(l); makeBody(l, TYPE[values.type] || TYPE.dynamic); }
+        if (!isBody(l) && !values.type) continue;
+        if (!isBody(l)) validate(l);
+        unlocked(l, function () { applyValues(l); });
+        changed++;
+      }
+      var s = summary(c); s.changed = changed; return s;
+    });
+    function applyValues(l) {
+        if (!isBody(l)) makeBody(l, TYPE[values.type] || TYPE.dynamic);
         if (values.type && TYPE[values.type]) setIfChanged(control(l, N.type).property(1), TYPE[values.type]);
         for (var key in map) {
           if (!map.hasOwnProperty(key) || typeof values[key] !== 'number' || !isFinite(values[key])) continue;
@@ -322,10 +335,7 @@ var Gravedad = (function () {
           if (!fx) fx = addControl(l, key === 'impulseAngle' ? 'ADBE Angle Control' : 'ADBE Slider Control', map[key][0], 0);
           setIfChanged(fx.property(1), Math.max(map[key][1], Math.min(map[key][2], values[key])));
         }
-        changed++;
-      }
-      var s = summary(c); s.changed = changed; return s;
-    });
+    }
   }
 
   function seek(arg) { var c = comp(true), k = Math.max(0, Math.min(frameCount(c) - 1, Math.round(arg.frame))); c.time = frameTime(c, k); return { time: c.time, frame: k }; }
@@ -401,7 +411,7 @@ var Gravedad = (function () {
       addControl(l, 'ADBE Slider Control', N.spin, 90);
       addControl(l, 'ADBE Slider Control', N.fade, 0.3);
       addControl(l, 'ADBE Slider Control', N.seed, 1);
-      for (t = 0; t < chosen.length; t++) chosen[t].enabled = false;
+      for (t = 0; t < chosen.length; t++) (function (tl) { unlocked(tl, function () { tl.enabled = false; }); }(chosen[t]));
       select(c, [l]);
       return summary(c);
     });
@@ -452,6 +462,12 @@ var Gravedad = (function () {
     return { file: file.fsName, left: r.left - 2 / k, top: r.top - 2 / k, scale: k };
   }
 
+  function visualEffects(l) {
+    var fx = parade(l);
+    if (!fx) return false;
+    for (var i = 1; i <= fx.numProperties; i++) if (fx.property(i).enabled && fx.property(i).name.indexOf('Gravedad') !== 0) return true;
+    return false;
+  }
   function geometryOf(l, c, t, dir, cache) {
     var kind = Math.round(read(l, N.shape, 1)), g = null, note = null;
     if (kind === 2) return { shape: boxOf(l, t) };
@@ -462,7 +478,9 @@ var Gravedad = (function () {
     if (!g && l instanceof ShapeLayer) g = GravedadGeometry.shapeLayer(l, t);
     if (!g && (solidSource(l) || opaqueFootage(l))) g = boxOf(l, t);
     if (!g) {
-      var key = l.source && !(l.source instanceof CompItem) ? 'fuente' + l.source.id + '@' + l.sourceTime(t) : null;
+      // Capas con la misma fuente (metraje o precomposicion) en el mismo instante comparten render, salvo que tengan
+      // efectos propios que cambien el alfa.
+      var key = l.source && !visualEffects(l) ? 'fuente' + l.source.id + '@' + Math.round(l.sourceTime(t) * 1000) : null;
       if (key && cache[key]) return { raster: cache[key], fallback: boxOf(l, t), note: note };
       try { var job = renderAlpha(l, c, t, dir, l.id); if (key) cache[key] = job; return { raster: job, fallback: boxOf(l, t), note: note }; }
       catch (e) { return { shape: boxOf(l, t), note: 'alfa' }; }
@@ -537,7 +555,9 @@ var Gravedad = (function () {
       if (!isBody(l) || !control(l, N.joint) || templates[l.id]) continue;
       var jk = Math.round(read(l, N.joint, 4));
       if (jk < 1 || jk > 3) continue;
-      var bi = Math.round(read(l, N.jointTo, 0)), other = bi >= 1 && bi <= c.numLayers && c.layer(bi) !== l ? c.layer(bi) : null;
+      var bi = Math.round(read(l, N.jointTo, 0));
+      if (bi < 1 || bi > c.numLayers) { scene.problems.push(l.name + ': la capa a la que estaba unida ya no existe; se ignora la uni\u00f3n.'); continue; }
+      var other = c.layer(bi) !== l ? c.layer(bi) : null;
       scene.joints.push({ a: String(l.id), b: other ? String(other.id) : null, type: JOINTS[jk - 1], frequency: Math.max(0.05, read(l, N.stiffness, 2)), damping: Math.max(0, read(l, N.damping, 0.2)) });
     }
     var forces = findAll(c, TAG.force);
@@ -677,18 +697,21 @@ var Gravedad = (function () {
         var rec = res.bodies[id], l = layerById(c, id);
         if (!l || !rec.data.length || !isBody(l) || bodyType(l) !== 'dynamic') continue;
         try {
-          // La rotacion se escribe como giro relativo a la de partida; se lee antes de quitar el padre.
-          var rot0 = rotationGuess(l, times[rec.from]);
-          if (l.parent) l.parent = null;
-          writeMotion(l, c, rec, rot0, times); written++;
-          removeMarkers(l);
-          if (res.markers && res.contacts && res.contacts[id]) for (var h = 0; h < res.contacts[id].length; h++) addMarker(l, times[res.contacts[id][h]]);
+          unlocked(l, function () {
+            // La rotacion se escribe como giro relativo a la de partida; se lee antes de quitar el padre.
+            var rot0 = rotationGuess(l, times[rec.from]);
+            if (l.parent) l.parent = null;
+            writeMotion(l, c, rec, rot0, times); written++;
+            removeMarkers(l);
+            if (res.markers && res.contacts && res.contacts[id]) for (var h = 0; h < res.contacts[id].length; h++) addMarker(l, times[res.contacts[id][h]]);
+          });
         } catch (e) { problems.push(l.name + ': ' + e.message); }
       }
       for (var i = 0; i < res.particles.length; i++) {
         var p = res.particles[i], e2 = res.emitters[p.emitter], info = e2 ? e2.templates[p.template || 0] : null, tpl = info ? layerById(c, info.id) : null;
         if (!tpl || !p.data.length) continue;
         var dup = tpl.duplicate();
+        dup.locked = false;
         dup.name = tpl.name + ' \u00b7 ' + (p.index < 10 ? '00' : p.index < 100 ? '0' : '') + p.index;
         dup.comment = TAG.particle + p.emitter;
         stripControls(dup);
@@ -727,6 +750,12 @@ var Gravedad = (function () {
       for (var i = 1; i <= c.numLayers; i++) {
         var l = c.layer(i);
         if (!isBody(l) || bodyType(l) !== 'dynamic') continue;
+        if (unlocked(l, function () { return clearLayer(l); })) cleared++;
+      }
+      var w0 = find(c, TAG.world); if (w0) w0.comment = TAG.world;
+      var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; return s0;
+    });
+    function clearLayer(l) {
         var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position'), R = tr.property('ADBE Rotate Z');
         var span = spanOf(l, c, frameCount(c)), t0 = frameTime(c, span.spawn), list = P.dimensionsSeparated ? [tr.property('ADBE Position_0'), tr.property('ADBE Position_1'), R] : [P, R], touched = false;
         for (var j = 0; j < list.length; j++) {
@@ -737,12 +766,9 @@ var Gravedad = (function () {
           if (before) p.setValueAtTime(t0, rest); else if (!p.numKeys) p.setValue(rest);
           touched = true;
         }
-        if (touched) cleared++;
         removeMarkers(l);
-      }
-      var w = find(c, TAG.world); if (w) w.comment = TAG.world;
-      var s = summary(c); s.cleared = cleared; s.removed = removed; return s;
-    });
+        return touched;
+    }
   }
 
   function selectBodies(arg) {

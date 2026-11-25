@@ -12,6 +12,8 @@ const clone = (v) => Array.isArray(v) ? v.map(clone) : (v && typeof v === 'objec
 
 class Shape { constructor() { this.vertices = []; this.inTangents = []; this.outTangents = []; this.closed = true; } }
 
+// After no deja modificar nada de una capa bloqueada.
+function guard(p) { let g = p; while (g && g.parentProperty) g = g.parentProperty; if (g && g._layer && g._layer.locked) throw Error('After: la capa ' + g._layer.name + ' está bloqueada'); }
 class PropertyBase {
   constructor(matchName, name, parent) { this.matchName = matchName; this.name = name || matchName; this.parentProperty = parent || null; this.enabled = true; this._removed = false; }
   get propertyIndex() { return this.parentProperty ? this.parentProperty._children.indexOf(this) + 1 : 0; }
@@ -35,14 +37,15 @@ class Property extends PropertyBase {
     for (let i = 0; i < k.length - 1; i++) if (t >= k[i].t && t <= k[i + 1].t) { if (typeof k[i].v === 'object' && !Array.isArray(k[i].v)) return clone(k[i].v); return lerp(k[i].v, k[i + 1].v, (t - k[i].t) / (k[i + 1].t - k[i].t)); }
   }
   setValue(v) {
+    guard(this);
     if (this.keys.length) throw Error('Tiene claves: usa setValueAtTime'); this._check(v); this._value = clone(v);
     // Control de capa: After guarda la capa, no su índice; el valor sigue a la capa si se reordena.
     if (this.matchName === 'ADBE Layer Control-0001') this._layerRef = v ? MockAE.project.activeItem.layer(v) : null;
   }
   _check(v) { if (Array.isArray(this._value) && (!Array.isArray(v) || v.some((x) => typeof x !== 'number' || !isFinite(x)))) throw Error(this.name + ': valor no válido ' + JSON.stringify(v)); if (typeof this._value === 'number' && (typeof v !== 'number' || !isFinite(v))) throw Error(this.name + ': valor no válido ' + v); }
-  setValueAtTime(t, v) { this._check(v); const i = this.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6); if (i >= 0) this.keys[i].v = clone(v); else { this.keys.push({ t, v: clone(v) }); this.keys.sort((a, b) => a.t - b.t); } }
+  setValueAtTime(t, v) { guard(this); this._check(v); const i = this.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6); if (i >= 0) this.keys[i].v = clone(v); else { this.keys.push({ t, v: clone(v) }); this.keys.sort((a, b) => a.t - b.t); } }
   setValuesAtTimes(ts, vs) { if (ts.length !== vs.length) throw Error('longitudes distintas'); MockAE.stats.setValuesAtTimes++; for (let i = 0; i < ts.length; i++) this.setValueAtTime(ts[i], vs[i]); }
-  removeKey(i) { if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); MockAE.stats.removeKey = (MockAE.stats.removeKey || 0) + 1; this.keys.splice(i - 1, 1); }
+  removeKey(i) { guard(this); if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); MockAE.stats.removeKey = (MockAE.stats.removeKey || 0) + 1; this.keys.splice(i - 1, 1); }
   get dimensionsSeparated() { return this.dimensionsSeparatedValue; }
   set dimensionsSeparated(v) { this.dimensionsSeparatedValue = v; }
   setPropertyParameters(items) { if (MockAE.failDropdown) throw Error('No se puede'); if (this.matchName !== 'ADBE Dropdown Control-0001') throw Error('no es menú'); this.items = items; return this; }
@@ -56,7 +59,7 @@ class Group extends PropertyBase {
     return this._children.find((c) => c.matchName === k || c.name === k) || null;
   }
   add(child) { child.parentProperty = this; this._children.push(child); return child; }
-  addProperty(matchName) { const f = factories[matchName]; if (!f) throw Error('addProperty: ' + matchName + ' no soportado'); const c = f(this); c.parentProperty = this; this._children.push(c); return c; }
+  addProperty(matchName) { guard(this); const f = factories[matchName]; if (!f) throw Error('addProperty: ' + matchName + ' no soportado'); const c = f(this); c.parentProperty = this; this._children.push(c); return c; }
 }
 
 function prop(group, m, n, v) { return group.add(new Property(m, n, v, group)); }
@@ -95,7 +98,7 @@ class Layer {
     opts = opts || {};
     this.containingComp = comp; this.id = nextId++; this.name = name; this.comment = ''; this.enabled = true; this.selected = false; this.locked = false; this.guideLayer = false; this.threeDLayer = false; this.nullLayer = !!opts.nullLayer; this.hasVideo = true; this.solo = false; this.motionBlur = false;
     this._parent = null; this.startTime = 0; this._in = 0; this._out = comp.duration; this.source = opts.source || null; this.removed = false;
-    const root = this._root = new Group('root', 'root');
+    const root = this._root = new Group('root', 'root'); root._layer = this;
     const tr = root.add(new Group('ADBE Transform Group', 'Transform', root));
     prop(tr, 'ADBE Anchor Point', 'Anchor Point', [0, 0]);
     const pos = prop(tr, 'ADBE Position', 'Position', [comp.width / 2, comp.height / 2]);
@@ -143,13 +146,13 @@ class Layer {
   remove() { if (this.locked) throw Error('capa bloqueada'); const L = this.containingComp._layers; L.splice(L.indexOf(this), 1); this.removed = true; }
   duplicate() {
     const c = this.containingComp, d = Object.create(Object.getPrototypeOf(this));
-    Object.assign(d, this); d.id = nextId++; d._root = deepCopyGroup(this._root, null, c); d.selected = false;
+    Object.assign(d, this); d.id = nextId++; d._root = deepCopyGroup(this._root, null, c); d._root._layer = d; d.selected = false;
     c._layers.splice(this.index - 1, 0, d);
     return d;
   }
   copyToComp(target) {
     const d = Object.create(Object.getPrototypeOf(this));
-    Object.assign(d, this); d.id = nextId++; d.containingComp = target; d._root = deepCopyGroup(this._root, null, target); d._parent = null;
+    Object.assign(d, this); d.id = nextId++; d.containingComp = target; d._root = deepCopyGroup(this._root, null, target); d._root._layer = d; d._parent = null;
     target._layers.unshift(d);
   }
 }

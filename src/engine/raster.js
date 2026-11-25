@@ -8,7 +8,7 @@ var fs = require('fs'), zlib = require('zlib');
 function decode(buffer) {
   var b = buffer;
   if (b.length > 256 * 1024 * 1024 || b.toString('hex', 0, 8) !== '89504e470d0a1a0a') throw Error('PNG no válido o demasiado grande.');
-  var pos = 8, w = 0, h = 0, depth = 8, type = 0, interlace = 0, trns = null, chunks = [];
+  var pos = 8, w = 0, h = 0, depth = 8, type = 0, interlace = 0, trns = null, chunks = [], ended = false;
   while (pos + 12 <= b.length) {
     var len = b.readUInt32BE(pos), tag = b.toString('ascii', pos + 4, pos + 8);
     if (pos + len + 12 > b.length) throw Error('PNG truncado.');
@@ -17,15 +17,18 @@ function decode(buffer) {
     else if (tag === 'IDAT') chunks.push(data);
     else if (tag === 'tRNS') trns = data;
     pos += len + 12;
-    if (tag === 'IEND') break;
+    if (tag === 'IEND') { ended = true; break; }
   }
+  if (!ended) throw Error('PNG truncado o dañado.');
   var channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[type];
   if (!channels || !w || !h) throw Error('PNG no compatible.');
   if (w * h > 40000000) throw Error('PNG fuera del límite de 40 MP.');
   if (interlace) throw Error('PNG entrelazado: guárdalo sin entrelazar.');
   if (depth !== 8 && depth !== 16 && !(type === 3 && depth <= 8)) throw Error('Profundidad de PNG no compatible.');
   var bitsPerPixel = channels * depth, bpp = Math.max(1, bitsPerPixel >> 3), stride = Math.ceil(w * bitsPerPixel / 8);
-  var raw = zlib.inflateSync(Buffer.concat(chunks)), image = Buffer.alloc(stride * h);
+  var raw;
+  try { raw = zlib.inflateSync(Buffer.concat(chunks)); } catch (e) { throw Error('PNG dañado: no se pudieron leer sus píxeles.'); }
+  var image = Buffer.alloc(stride * h);
   if (raw.length < (stride + 1) * h) throw Error('Datos PNG incompletos.');
   for (var y = 0; y < h; y++) {
     var f = raw[y * (stride + 1)], row = y * (stride + 1) + 1;
