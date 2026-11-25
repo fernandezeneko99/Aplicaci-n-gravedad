@@ -95,3 +95,13 @@ test('B6 · pila con densidades 0,01–9,9 y gravedad 2500 px/s²: sin penetraci
   assert.ok(worstPenetration(sc, r) <= 2, 'penetración ' + worstPenetration(sc, r).toFixed(2) + ' px');
   assert.ok(r.warnings.some((w) => w.code === 'masa-limitada' && w.limit < 1000), 'avisa del límite reducido');
 });
+
+// Lote 2: una tabla animada fina (3 px) que avanza 20–115 px por fotograma, o tiembla, empuja los cuerpos sin atravesarlos.
+for (const [label, step] of [['avance constante de 60 px/fot.', (k) => -60 * k], ['temblor de hasta 115 px/fot.', (k) => (k % 2 ? -1 : 1) * Math.min(115, 6 * k) - 30 * k]]) {
+  test('pared animada fina · ' + label + ': la caja que empuja queda siempre por delante', () => {
+    const frames = 30, track = []; for (let k = 0; k < frames; k++) track.push([1200 + step(k), 540, 0]);
+    const r = Sim.run(scene({ fps: 25, frames, world: { gravity: 0, quality: 60 }, bodies: [{ id: 'w', type: 'kinematic', pose: { x: 1200, y: 540, a: 0 }, track, shape: { kind: 'box', w: 3, h: 700 } }, { id: 'b', type: 'dynamic', pose: { x: 1000, y: 600, a: 0 }, shape: { kind: 'box', w: 18, h: 18 } }] }));
+    const W = r.bodies.w.data, B = r.bodies.b.data;
+    for (let k = 0; k < frames; k++) assert.ok(B[k * 3] < W[k * 3], 'fotograma ' + k + ': caja en ' + B[k * 3].toFixed(1) + ', pared en ' + W[k * 3].toFixed(1));
+  });
+}

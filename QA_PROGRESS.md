@@ -54,7 +54,11 @@ Documento vivo de calidad. Al retomar: leer «Siguiente acción», contrastar co
 | F1 | Duplicar capa simulada | OK: limpiar una no toca la otra; la copia no se borra a ciegas | «duplicar una capa simulada…» | AE-1 |
 | F1 | Proyecto 1.1.1 (solo ids) | OK: no borra a ciegas, avisa | «proyecto de la 1.1.1…» | AE-3 |
 | F1 | Capa con padre: Desactivado / Fijo a mitad | OK: padre recuperado sin saltos | «capa con padre…» (2 pruebas) | AE-1 |
-| F1 | Deshacer tras Fijo/Desactivado/Borrar | Sin verificar (el modelo simulado no implementa Deshacer) | — | AE-4 |
+| F1 | Deshacer tras Simular / Fijo / Borrar | OK: cada paso vuelve exactamente al estado anterior (claves, valores, registro); deshacer no mueve el cursor | `flows` «deshacer Simular, Fijo y Borrar…» (el modelo simulado tiene Deshacer desde la sesión 2) | AE-4 (Rehacer, y que el registro acompañe en After real) |
+| F1 | Fijo / Desactivado con el cursor al principio, a mitad, al final y después del área de trabajo, por panel y por Controles de efectos | OK: pose y rotación congeladas = pose visible = pose del motor; 8 controles con los mismos valores; otro cuerpo choca con la pose congelada | `flows` (8 casos + Desactivado ×2 vías) | AE-1, AE-2, AE-8 |
+| F1 | Fijo sobre una capa con animación propia | OK: recupera sus claves con interpolación y pasa a animada (empuja) | `flows` «Fijo con animación propia…» | AE-1 |
+| F1 | Fijo → Dinámico (cursor a mitad) | OK: arranca desde la pose congelada; la primera clave escrita = pose que se ve = pose del motor | `flows` «Fijo → Dinámico…» | AE-8 |
+| F1 | Simular → cambiar inicio del área → re-simular → editar clave (valor + HOLD) y añadir otra → Cancelar → Borrar → Deshacer → reabrir → Borrar | OK: Cancelar no toca nada; Borrar conserva lo editado y lo añadido y devuelve lo original con su interpolación; tras Deshacer y reabrir, Borrar da el mismo resultado | `flows` «secuencia: …» | AE-3, AE-4 |
 | F2 Partículas | Dos clics sin selección | OK: una sola forma de ejemplo reutilizada | «F2 · dos clics sin selección» | AE-5 |
 | F2 | Doble clic (emisor recién creado seleccionado) | OK: no duplica; explica qué hacer | «F2 · doble clic…» | AE-5 |
 | F2 | Emisor + capas seleccionadas | OK: se añaden como formas sin repetir | «F2 · emisor + capas…» | AE-5 |
@@ -66,8 +70,12 @@ Documento vivo de calidad. Al retomar: leer «Siguiente acción», contrastar co
 | F5 Fuerzas | Por defecto afecta a todas | OK (comportamiento anterior) | «F5 · por defecto…» | — |
 | F5 | «Solo a la capa»; capa borrada; acotada a un emisor | OK: solo esa capa; sin capa no se aplica y avisa | «F5 · …» (3) | AE-6 |
 | Integridad | Fallo a mitad de escribir; reintento | OK: registro guardado; Borrar restaura; reintento limpio | «fallo a mitad…», «reintento…» | — |
+| Integridad | Fallo a mitad al crear partículas; reintento | OK: sin claves, capas, controladores ni marcadores duplicados; Borrar deja la escena limpia | `flows` «fallo a mitad: …» | — |
 | Integridad | Cambiar de composición durante el cálculo | OK: se escribe en la simulada | «cambiar de composición mientras…» | AE-6 |
 | Uso | Doble clic en Simular | OK: no cancela (antes sí) | `panel.test.js` «doble clic» | — |
+| Uso | Refrescos ligeros y completos alternados | OK: «Tipo cambiado…» / «Desactualizada» se mantienen y desaparecen al simular | `panel-sync` | — |
+| Uso | Respuestas fuera de orden (una lenta llega después de cambiar de composición o de una acción) | OK: se descarta; no vuelve el aviso de la composición o el área anterior (antes sí) | `panel-sync` «respuesta tardía…» (falla con el código anterior) | — |
+| Uso | Puntero quieto sobre Simular; un clic = una simulación | OK: la ayuda no tapa «Simulado en…» ni los errores | `panel` | — |
 
 ## Rendimiento (medido)
 
@@ -108,14 +116,19 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 - **AE-7 · Duplicar a mano un círculo con Gravedad aplicada.** Capa de forma «bola» (elipse 80, x=640 y=200), Dinámico.
   1. Antes de simular, Ctrl/Cmd+D. Resultado esperado: la copia tiene los mismos 8 controles «Gravedad ·» con los mismos
      valores; Controles de efectos de la copia no muestra controles repetidos.
-  2. Sin mover la copia, Simular. Resultado observado en el modelo: las dos caen exactamente superpuestas, como un único
-     círculo (**F6, abierto**). Resultado esperado tras corregir F6: aviso «bola y su copia empiezan en el mismo sitio».
+  2. Sin mover la copia, Simular. Esperado, aviso literal: `«bola» (capa 1) y «bola» (capa 2) empiezan en el mismo sitio con la misma
+     forma: se moverán como un solo cuerpo. Mueve una de ellas antes de simular.` (F6, corregido en el motor: las dos capas
+     son dos cuerpos independientes; el aviso explica por qué se ven como uno).
   3. Mover la copia a x=800 en el fotograma inicial y Simular: dos círculos que caen y chocan entre sí sin solaparse.
   4. Simular, después duplicar la bola ya simulada (la copia lleva sus claves), mover la copia en 0 s a x=900 y re-simular:
      la copia cae desde x=900.
   5. Borrar: la bola original queda sin claves en su pose de partida; la copia recupera las claves que heredó (Gravedad no
-     sabe que eran de la simulación) y el aviso debe nombrarla una sola vez (**F7, abierto**).
-  6. Ctrl/Cmd+Z tras cada paso deja la composición como estaba.
+     sabe que eran de la simulación). El aviso no la nombra como «no tocada» y cada nombre lleva su número de capa (F7,
+     corregido).
+  6. Dos círculos idénticos «bola» en x=400 y x=900, un rectángulo Fijo bajo el de x=900. Simular: dos trayectorias; solo
+     el de x=900 se detiene en el obstáculo. Pasar la copia a Fijo, Borrar, borrar la capa copia: el original no cambia.
+     Reordenar las capas (copia arriba) y re-simular: mismo resultado. Guardar, cerrar, reabrir, Borrar: igual.
+  7. Ctrl/Cmd+Z tras cada paso deja la composición como estaba.
 - **AE-8 · Dinámico → Fijo → Dinámico revisando los controladores.** «bola» Dinámico con Densidad 3, Fricción 0,7,
   Rebote 0,5, Impulso 200, Dirección del impulso 45°, Giro inicial 30. Simular. Repetir tres veces, una por vía:
   botones Fijo/Dinámico del panel, segmento Tipo del inspector, desplegable «Gravedad · Tipo» en Controles de efectos.
@@ -126,21 +139,25 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
   3. Simular. Esperado: cae desde la pose congelada de 0,8 s (no desde la original, que solo se recupera con Ctrl/Cmd+Z) y con
      el impulso de 200 px/s a 45°.
   4. Repetir el paso 1 con el cursor en 0 s: queda en su pose de partida.
-  5. El inspector del panel y el medidor reflejan cada estado sin parpadeos («Simulada · al día» / «Tipo cambiado…»).
+  5. Repetir el paso 1 con el cursor en el último fotograma y después del área de trabajo: queda en la pose final.
+  6. Con una segunda capa «tabla» con claves propias de Posición (suavizado + HOLD), pasarla a Fijo: recupera sus claves
+     con la misma interpolación; Simular: la bola rebota en la tabla mientras esta se mueve.
+  7. El inspector del panel y el medidor reflejan cada estado sin parpadeos («Simulada · al día» / «Tipo cambiado…»), y
+     pasar el puntero sobre Simular no tapa «Simulado en…».
 
 ## Cobertura de los casos de la lista original (revisión antes de cerrar QA)
 
 | Caso | Procedimiento en After | Cubierto por pruebas automatizadas (modelo de After) | Pendiente dentro de After Effects |
 |---|---|---|---|
-| Duplicar a mano un círculo con Gravedad aplicada | **AE-7** (nuevo). AE-1 solo duplicaba B, un rectángulo, y solo miraba Borrar | Copia con controles idénticos y dos círculos simulados (`caso 1a`); copia de un círculo ya simulado y movida (`caso 1c`); Borrar no toca una copia sin registro (`F1 · duplicar una capa simulada`, rectángulo); copia con controles, ambas se simulan (`variants-host`) | AE-7 completo; F6 y F7 sin corregir |
+| Duplicar a mano un círculo con Gravedad aplicada | **AE-7** (nuevo). AE-1 solo duplicaba B, un rectángulo, y solo miraba Borrar | Copia con controles idénticos y dos círculos simulados (`caso 1a`); copia de un círculo ya simulado y movida (`caso 1c`); Borrar no toca una copia sin registro (`F1 · duplicar una capa simulada`, rectángulo); copia con controles, ambas se simulan (`variants-host`) | AE-7 completo (F6 y F7 corregidos: comprobar los textos del aviso en After) |
 | Controladores al pasar de Dinámico a Fijo y de vuelta a Dinámico | **AE-8** (nuevo). AE-1/AE-2 solo pasaban a Fijo o Desactivado, sin volver ni revisar los controles | `caso 2` × 3 vías (panel, inspector, Controles de efectos): tipo, 8 controles sin duplicar, valores intactos, pose congelada, impulso conservado; `F1 · pasar a Fijo y volver a Dinámico` (cursor en 0 s); reasignar no duplica controles (`host.test`) | AE-8 completo: menú desplegable real (`setPropertyParameters`), Deshacer, aspecto en Controles de efectos |
 
-### Hallazgos abiertos de esta revisión
+### Hallazgos de esta revisión
 
 | # | Hallazgo | Impacto | Estado |
 |---|---|---|---|
-| F6 | Un círculo duplicado sin mover empieza exactamente sobre el original y ambos caen superpuestos como uno (Box2D no puede separar dos círculos concéntricos idénticos) | Resultado incorrecto silencioso | Abierto. Propuesta: avisar al simular de cuerpos con la misma pose y forma |
-| F7 | Tras Borrar, una copia restaurada aparece también como «no tocada» en el aviso, y con el mismo nombre que el original | Mensaje confuso | Abierto. Propuesta: excluir del aviso las capas restauradas y añadir el índice de capa |
+| F6 | Un círculo duplicado sin mover empieza exactamente sobre el original y ambos caen superpuestos como uno (Box2D no puede separar dos círculos concéntricos idénticos) | Resultado incorrecto silencioso | **Corregido (sesión 2).** La identidad ya era independiente (dos cuerpos, dos trayectorias; el que choca es el único que cambia). Ahora se avisa al simular, con números de capa. `test/f6-duplicates.test.js` (12 pruebas: caso mínimo con obstáculo bajo una copia, Fijo, Borrar, borrar la copia, copias antes/después de simular, varias copias, nombres repetidos, reordenar, reabrir) |
+| F7 | Tras Borrar, una copia restaurada aparece también como «no tocada» en el aviso, y con el mismo nombre que el original | Mensaje confuso | **Corregido (sesión 2).** Las capas restauradas no se citan; cada nombre lleva «(capa N)». Regresión en `f6-duplicates` |
 
 ### Corregido durante esta revisión (panel)
 
@@ -194,6 +211,10 @@ Determinismo: cada 10.ª escena se repite y se comparan las trayectorias byte a 
 - Sesión 1 (cont.): F2, F3, F4, F5, integridad (fallo a mitad, cambio de composición), doble clic y rendimiento del host.
   Cada corrección con regresión que falla con el código anterior. Batería completa: 249/249.
 
+- Sesión 2 (1.2.0 → 1.3.0): F6 y F7 corregidos (12 pruebas). Batería de escenas del motor: lote 1 (10 800 escenas) encontró
+  B1–B6 en el motor, corregidos con 16 regresiones; lote 2 sobre el motor final (ver abajo). Panel: respuestas fuera de
+  orden (corregido, `panel-sync`). Modelo de After con Deshacer real; 14 pruebas de flujos completos (`flows`). Versión 1.3.0.
+
 ## Resultados por capa de verificación (1.2.0)
 
 | Capa | Qué | Resultado | Dónde |
@@ -218,13 +239,25 @@ emojis, capa con remapeo de tiempo.
 - Recursos al cerrar: el panel solo mantiene un intervalo de latido (se salta con el panel oculto) y un `ResizeObserver`;
   CEP destruye la página al cerrar el panel. Sin procesos ni archivos abiertos tras cerrar.
 
+## Selección corta para After Effects real (por impacto, de mayor a menor)
+
+1. **AE-8 pasos 1–3** (Dinámico → Fijo a mitad → Dinámico): es el flujo con más lógica propia (congelar, recuperar claves,
+   desplegable de Controles de efectos) y el modelo no puede probar `setPropertyParameters` real.
+2. **AE-4** Deshacer/Rehacer tras Simular, Fijo y Borrar: el modelo hace instantáneas; After real agrupa por
+   `beginUndoGroup` y el registro vive en marcadores (debe acompañar a las claves).
+3. **AE-3** Guardar, cerrar After, reabrir y Borrar: persistencia real de los marcadores del nulo de mundo.
+4. **AE-7 pasos 2 y 6** (círculo duplicado sin mover → aviso F6; dos círculos y obstáculo bajo uno).
+5. Pila de 12 tablas 200×40 alternando Densidad 1000 y 0,001 (escena de estrés «densidades 0,001 y 1000 apiladas»):
+   comprobar en After los avisos de calidad subida y relación limitada, y que la pila no se hunde ni salta.
+6. Pala animada fina (3 px) que barre una caja a 60 px/fotograma (`engine-limits` «pared animada fina»): la caja va
+   siempre por delante.
+7. Rendimiento P1: escena 64×64 con ~60 cuerpos atascados; el panel debe seguir respondiendo y Cancelar funcionar.
+
 ## Siguiente acción
 
-0. Corregir F6 (aviso de cuerpos superpuestos al simular) y F7 (aviso de Borrar), con regresión cada uno.
-
-1. **Necesita intervención (entorno con After Effects):** instalar `dist/Gravedad-1.2.1.zxp` sobre una instalación con 0.5.0
+1. **Necesita intervención (entorno con After Effects):** instalar `dist/Gravedad-1.3.0.zxp` sobre una instalación con 0.5.0
    (mismo id `com.eneko.gravedad`) en macOS y Windows con ZXP Installer, comprobar que el panel abre desde
-   Ventana › Extensiones › Gravedad y ejecutar AE-1 … AE-6 en AE 2022, 2024 y 2025. Anotar aquí cada resultado.
-2. Mientras tanto (ejecutable aquí): revisar los mensajes del panel en tamaños 260–600 px con secciones abiertas y repasar
-   recursos activos al cerrar el panel (intervalo del latido, `ResizeObserver`); medir el tiempo de escritura de claves
-   (`apply`) con el contador de `hostbench.js` sobre 300 cuerpos.
+   Ventana › Extensiones › Gravedad y ejecutar la selección corta de arriba y después AE-1 … AE-8 en AE 2022, 2024 y 2025. Anotar aquí cada resultado.
+2. Mientras tanto (ejecutable aquí): P1, escenas muy atascadas en composiciones diminutas (64×64 con ~60 cuerpos): probar
+   a desactivar «bala» en cuerpos que llevan varios fotogramas en contacto lento, midiendo con la familia `paredFina` y
+   `anillo` que no reaparecen túneles.

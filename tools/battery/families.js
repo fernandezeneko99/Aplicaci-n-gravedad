@@ -83,11 +83,12 @@ families.paredFina = { count: 800, make(seed) {
   const scene = { fps, frames, width: 1920, height: 1080, world: { gravity: 0, quality }, bodies: [wall, { id: 'b', type: 'dynamic', pose: { x: 300, y: 540 + r.range(-200, 200), a: 0 }, velocity: { x: speed, y: 0 }, shape: r.chance(0.6) ? ball(rr) : box(rr * 2, rr * 2) }] };
   return { scene, check(res) {
     const W = res.bodies.w, B = res.bodies.b;
-    // Cruce real: entre dos fotogramas la bola pasa de un lado al otro de la pared (medido con la pose de la pared del
-    // fotograma siguiente) a la altura de la pared. Que la pared gire con el impacto no cuenta como cruce.
+    // Cruce real: entre dos fotogramas la bola pasa de un lado al otro de la pared, medida cada vez en el sistema de la pared
+    // de ese mismo fotograma (una pared animada que empuja la bola la adelanta si se mide con una sola pose) y a la altura de
+    // la pared. Que la pared gire con el impacto no cuenta como cruce.
     const local = (w, b) => { const a = -w[2] * Math.PI / 180, dx = b[0] - w[0], dy = b[1] - w[1]; return [Math.cos(a) * dx - Math.sin(a) * dy, Math.sin(a) * dx + Math.cos(a) * dy]; };
     for (let k = 1; k < frames; k++) {
-      const w = frameOf(W, k), p0 = local(w, frameOf(B, k - 1)), p1 = local(w, frameOf(B, k));
+      const p0 = local(frameOf(W, k - 1), frameOf(B, k - 1)), p1 = local(frameOf(W, k), frameOf(B, k));
       if (Math.sign(p0[0]) !== Math.sign(p1[0]) && Math.abs(p0[0] - p1[0]) > thick && Math.max(Math.abs(p0[1]), Math.abs(p1[1])) < 330) return [fail('pared fina (' + kind + ')', 'no atraviesa una pared de ' + thick.toFixed(1) + ' px a ' + speed.toFixed(0) + ' px/s', 'cruza de ' + p0[0].toFixed(1) + ' a ' + p1[0].toFixed(1) + ' px', k)];
     }
     return [];
