@@ -88,6 +88,11 @@ Documento vivo de calidad. Al retomar: leer «Siguiente acción», contrastar co
 | Llamadas al DOM · Borrar | ídem | 119 757 | 84 577 (−29 %) | ídem |
 | Motor · 500 cuerpos, 300 fot. | — | 10,0 s | 10,8 s (+8 %, coste de F3) | `scratchpad/bench.js` (mediana de 3) |
 | Motor · 400 partículas, 300 fot. | — | 4,2 s | 4,8 s (+14 %, coste de F3) | ídem |
+| Motor 1.2.1 → 1.3.0 (B1–B7) · 500 cuerpos, 300 fot. | — | 7,2 / 5,9 s | 7,0 / 6,2 s (igual, dentro del ruido) | `scratchpad/bench.js`, 2 pasadas alternas, CPU libre |
+| ídem · 400 partículas, 300 fot. | — | 5,8 / 6,9 s | 6,5 / 6,2 s (igual, dentro del ruido) | ídem |
+| ídem · pila 12 cajas densidad 1000 : 0,001 | — | 81 ms (resultado falso: la pila se hunde) | 170 ms (×2: calidad subida a propósito, B2) | ídem |
+| ídem · 100 cuerpos, 600 fot. | — | 139 ms | 156 ms (+12 %: limitador B7 y comprobaciones B5) | ídem |
+| **P1 (abierto)** · 64×64 con ~60 cuerpos atascados | — | — | ~4,7 s/escena de media en `aleatorias` por casos así (balas en contacto lento) | batería, columna ms/escena |
 
 Los scripts de medición están en la carpeta temporal de la sesión; su contenido está descrito en el registro para rehacerlos
 (`hostbench.js`: escena de 300 rectángulos dinámicos, contador envolviendo `property`, `valueAtTime`, `keyTime`, `keyValue`).
@@ -221,6 +226,34 @@ Detenido tras ~11 900 escenas al aparecer 2 fallos reales en `aleatorias` (semil
 |---|---|---|---|---|---|
 | **B7** | Cuerpo unido con pivote a una capa animada **y** al mundo (1119: 3 cuerpos, 2 uniones, 640×360); bola de radio 130 con pivote a un trazo animado, gravedad 4126 (703) | Ningún desplazamiento mayor que la composición en un fotograma | Saltos de 1 152 y 4 143 px/fot. en los casos reducidos (hasta 40 587 px/fot. en la escena completa); el cuerpo clavado al mundo se aleja 700 px y vuelve | Las dos uniones no se pueden cumplir a la vez cuando la capa animada se mueve; el corrector de posiciones de las uniones de Box2D no tiene tope (el de contactos sí) y teletransporta el cuerpo | Limitador: ningún cuerpo dinámico supera, en velocidad ni en desplazamiento por subpaso, el doble de la velocidad máxima con causa física (impulsos, emisores, 2× la capa animada más rápida, (gravedad + fuerzas) × duración) + 2000 px/s. Aviso «X (y N capas más) se aceleraba sin causa física… Revisa sus uniones» solo si hay una capa unida a algo que no cede; sin uniones así recorta en silencio picos numéricos (partículas apretadas en un anillo). Fixtures `test/fixtures/b7-aleatorias-*.json`; 3 regresiones (2 fallan con el motor anterior; 1 comprueba que no actúa con impulso de 100 000 px/s, pala rápida ni fuerza de 50 000 px/s²). La batería cuenta en «limitador» las escenas tocadas y falla si avisa sin uniones |
 
+### Lote 4 (definitivo, código final 1.3.0) — `qa/battery/summary.json`
+
+`node tools/battery/run.js --reset && node tools/battery/run.js --workers 3` sobre el código final (motor `5d61857c…`).
+**12 700 escenas distintas, 0 fallos · 1 270 repeticiones de determinismo, 0 discrepancias · 12 escenas de estrés, 0 con fallo.**
+
+| Familia | Escenas | Fallos | Determinismo | ms/escena | Limitador |
+|---|---|---|---|---|---|
+| caida | 800 | 0 | 80 | 1 | 0 |
+| inercia | 700 | 0 | 70 | 0 | 0 |
+| reposo | 900 | 0 | 90 | 7 | 0 |
+| contencion | 800 | 0 | 80 | 189 | 5 |
+| paredFina | 800 | 0 | 80 | 1 | 0 |
+| anillo | 700 | 0 | 70 | 74 | 146 |
+| fuerzas | 700 | 0 | 70 | 1 | 0 |
+| emisores | 700 | 0 | 70 | 26 | 1 |
+| uniones | 600 | 0 | 60 | 3 | 0 |
+| pilas | 600 | 0 | 60 | 83 | 0 |
+| animados | 600 | 0 | 60 | 12 | 0 |
+| superpuestos | 500 | 0 | 50 | 10 | 15 |
+| duplicados | 500 | 0 | 50 | 14 | 0 |
+| rejilla | 1 800 | 0 | 180 | 3 | 0 |
+| aleatorias | 2 000 | 0 | 200 | 4 728 | 288 |
+| **Total** | **12 700** | **0** | **1 270** | | 455 |
+
+«Limitador» = escenas en las que B7 recortó algún cuerpo (en `anillo`, `contencion`, `superpuestos` son picos numéricos de
+partículas apretadas, sin aviso; ningún aviso en escenas sin uniones, comprobado en cada escena).
+Repetir un caso: `node tools/battery/run.js --family <familia> --seed <n>`.
+
 ## Registro de trabajo
 
 - Sesión 1 (QA): auditoría, reproducción de F1–F5. F1 corregido con registro de claves por capa; 19 pruebas de regresión
@@ -232,15 +265,18 @@ Detenido tras ~11 900 escenas al aparecer 2 fallos reales en `aleatorias` (semil
 - Sesión 2 (1.2.0 → 1.3.0): F6 y F7 corregidos (12 pruebas). Batería de escenas del motor: lote 1 (10 800 escenas) encontró
   B1–B6 en el motor, corregidos con 16 regresiones; lote 2 sobre el motor final (ver abajo). Panel: respuestas fuera de
   orden (corregido, `panel-sync`). Modelo de After con Deshacer real; 14 pruebas de flujos completos (`flows`). Versión 1.3.0.
+  Lote 3 encontró B7 (uniones imposibles teletransportan cuerpos), corregido con limitador y 3 regresiones. Lote 4 definitivo
+  sobre el código final: 12 700 escenas, 0 fallos. `npm test` 314/314; paquete 1.3.0 verificado.
 
-## Resultados por capa de verificación (1.2.0)
+## Resultados por capa de verificación (1.3.0)
 
 | Capa | Qué | Resultado | Dónde |
 |---|---|---|---|
-| Código | `npm test`: 263 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 263/263 | Contenedor Linux, Node 22, Chromium de Playwright |
-| Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.1.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
+| Motor | Batería de escenas (lote 4) + `engine-limits` y fixtures B7 | 12 700 escenas, 0 fallos; determinismo 1 270/1 270; estrés 12/12 | Contenedor Linux, Node 22 |
+| Modelo de After | `npm test`: 314 pruebas (motor, contornos, alfa, host contra After simulado con Deshacer, flujos completos, ES3, regresiones QA, panel en Chromium) | 314/314; pruebas de panel ×5 en lote independiente 65/65 | Contenedor Linux, Chromium de Playwright |
+| Empaquetado | `npm run build` → `dist/Gravedad-1.3.0.zxp` (150 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
 | Paquete | Panel ejecutado desde el `.zxp` extraído | 9/9 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
-| After Effects real | Instalación, carga del panel, AE-1 … AE-6, Deshacer/Rehacer, guardar y reabrir | **Pendiente** (no hay After en este entorno) | Ver procedimientos |
+| After Effects real | Instalación, carga del panel, AE-1 … AE-8, Deshacer/Rehacer, guardar y reabrir | **Nada verificado** (no hay After en este entorno) | Ver procedimientos y selección corta |
 
 Re-simular usa un atajo cuando la propiedad tiene exactamente las claves escritas (no las recorre); Borrar solo lee valores.
 Regresiones: clave añadida entre simulaciones, tramo más corto, punto de entrada más tarde, atajo sin lecturas de valor.

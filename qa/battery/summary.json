@@ -1,0 +1,196 @@
+{
+ "motor": "61387e9395da335f",
+ "fecha": "2026-11-25T17:52:48.908Z",
+ "escenasEjecutadas": 12700,
+ "escenasDistintas": 12700,
+ "repeticionesDeterminismo": 1270,
+ "determinismoFallido": 0,
+ "estres": 12,
+ "segundosCpu": 9762,
+ "escenasConFallo": 0,
+ "familias": {
+  "caida": {
+   "escenas": 800,
+   "fallos": 0,
+   "determinismo": 80,
+   "ms": 979,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "inercia": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 343,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "reposo": {
+   "escenas": 900,
+   "fallos": 0,
+   "determinismo": 90,
+   "ms": 6260,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "contencion": {
+   "escenas": 800,
+   "fallos": 0,
+   "determinismo": 80,
+   "ms": 150956,
+   "limitador": 5,
+   "tipos": {}
+  },
+  "paredFina": {
+   "escenas": 800,
+   "fallos": 0,
+   "determinismo": 80,
+   "ms": 553,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "anillo": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 51591,
+   "limitador": 146,
+   "tipos": {}
+  },
+  "fuerzas": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 387,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "emisores": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 18194,
+   "limitador": 1,
+   "tipos": {}
+  },
+  "uniones": {
+   "escenas": 600,
+   "fallos": 0,
+   "determinismo": 60,
+   "ms": 1574,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "pilas": {
+   "escenas": 600,
+   "fallos": 0,
+   "determinismo": 60,
+   "ms": 49723,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "animados": {
+   "escenas": 600,
+   "fallos": 0,
+   "determinismo": 60,
+   "ms": 7162,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "superpuestos": {
+   "escenas": 500,
+   "fallos": 0,
+   "determinismo": 50,
+   "ms": 4898,
+   "limitador": 15,
+   "tipos": {}
+  },
+  "duplicados": {
+   "escenas": 500,
+   "fallos": 0,
+   "determinismo": 50,
+   "ms": 6813,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "rejilla": {
+   "escenas": 1800,
+   "fallos": 0,
+   "determinismo": 180,
+   "ms": 5626,
+   "limitador": 0,
+   "tipos": {}
+  },
+  "aleatorias": {
+   "escenas": 2000,
+   "fallos": 0,
+   "determinismo": 200,
+   "ms": 9456507,
+   "limitador": 288,
+   "tipos": {}
+  }
+ },
+ "estresDetalle": [
+  {
+   "escena": "300 cuerpos",
+   "ms": 2250,
+   "fallos": 0
+  },
+  {
+   "escena": "600 cuerpos",
+   "ms": 6059,
+   "fallos": 0
+  },
+  {
+   "escena": "1000 cuerpos",
+   "ms": 13908,
+   "fallos": 0
+  },
+  {
+   "escena": "1500 partículas",
+   "ms": 41249,
+   "fallos": 0
+  },
+  {
+   "escena": "gravedad 100000",
+   "ms": 3381,
+   "fallos": 0
+  },
+  {
+   "escena": "gravedad negativa -100000",
+   "ms": 225,
+   "fallos": 0
+  },
+  {
+   "escena": "cuerpos de 1 px",
+   "ms": 3927,
+   "fallos": 0
+  },
+  {
+   "escena": "8K con 200 cuerpos grandes",
+   "ms": 2940,
+   "fallos": 0
+  },
+  {
+   "escena": "3000 fotogramas",
+   "ms": 344,
+   "fallos": 0
+  },
+  {
+   "escena": "impulsos máximos del panel",
+   "ms": 54,
+   "fallos": 0
+  },
+  {
+   "escena": "densidades 0,001 y 1000 apiladas",
+   "ms": 173,
+   "fallos": 0
+  },
+  {
+   "escena": "calidad 960 a 12 fps con 400 cuerpos",
+   "ms": 11413,
+   "fallos": 0
+  }
+ ],
+ "fallos": []
+}
