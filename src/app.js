@@ -208,7 +208,8 @@
   };
   $('particles').onclick = function () {
     run(async function () {
-      render(await call('particles'));
+      var d = await call('particles'); render(d);
+      if (d.addedTemplates !== undefined) { status(d.addedTemplates ? plural(d.addedTemplates, 'forma añadida', 'formas añadidas') + ' al emisor: cada partícula elige una al azar.' : 'Esas capas ya eran formas de este emisor.', 'ok'); return; }
       status('Emisor creado: muévelo y gíralo. Ritmo, Máximo, Velocidad, Vida, Tamaño y Desvanecer en Controles de efectos. Pulsa Simular para generar las partículas.', 'ok');
     });
   };

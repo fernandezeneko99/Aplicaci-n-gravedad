@@ -223,3 +223,39 @@ test('F1 · capa con padre: Fijo a mitad congela la pose visible y recupera el p
   const world = MockAE.apply(MockAE.world(k, 1), k.transform.anchorPoint.value);
   assert.ok(Math.hypot(world[0] - visible[0], world[1] - visible[1]) < 0.01, 'misma pose en la composición');
 });
+
+// ---------- F2: Partículas no duplica círculos ni emisores ----------
+const samples = (c) => c._layers.filter((l) => l.name === 'Forma de partícula').length;
+const emitters = (c) => c._layers.filter((l) => l.comment === 'gravedad:emisor');
+test('F2 · dos clics sin selección: una sola forma de ejemplo reutilizada', () => {
+  const { h, c } = setup();
+  ok(h.call('particles'));
+  sel(c, []); ok(h.call('particles'));
+  assert.strictEqual(samples(c), 1);
+  assert.strictEqual(emitters(c).length, 2, 'sin selección, cada clic crea un emisor (intencionado)');
+});
+test('F2 · doble clic (el emisor recién creado queda seleccionado): no se duplica nada y se explica', () => {
+  const { h, c } = setup();
+  ok(h.call('particles'));
+  const r = h.call('particles');
+  assert.strictEqual(r.ok, false); assert.match(r.error, /Ya hay un emisor seleccionado/);
+  assert.strictEqual(samples(c), 1); assert.strictEqual(emitters(c).length, 1);
+});
+test('F2 · emisor + capas seleccionadas: se añaden como formas sin repetir las que ya tiene', () => {
+  const { h, c } = setup();
+  const a = shape(c, 'hoja', [20, 10], [100, 100]), b = shape(c, 'flor', [15, 15], [150, 100], true);
+  sel(c, [a]); ok(h.call('particles'));
+  const em = emitters(c)[0];
+  sel(c, [em, a, b]); const r = ok(h.call('particles'));
+  assert.strictEqual(r.addedTemplates, 1);
+  assert.ok(em.property('ADBE Effect Parade').property('Gravedad · Capa de partícula 2'));
+  assert.ok(!em.property('ADBE Effect Parade').property('Gravedad · Capa de partícula 3'));
+  assert.strictEqual(emitters(c).length, 1); assert.strictEqual(b.enabled, false);
+});
+test('F2 · la forma de ejemplo reutilizada sigue sirviendo de plantilla al simular', async () => {
+  const { h, c } = setup();
+  ok(h.call('particles')); sel(c, []); ok(h.call('particles'));
+  emitters(c).forEach((em) => { em.property('ADBE Effect Parade').property('Gravedad · Máximo').property(1)._value = 3; em.property('ADBE Effect Parade').property('Gravedad · Ritmo').property(1)._value = 30; });
+  const out = await Pipeline.simulate(io(h));
+  assert.strictEqual(out.summary.created, 6);
+});

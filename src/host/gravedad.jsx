@@ -8,7 +8,7 @@ $.evalFile(new File(new File($.fileName).parent.fsName + '/geometry.jsx'));
 
 var Gravedad = (function () {
   var VERSION = '1.1.1';
-  var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:' };
+  var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:', sample: 'gravedad-forma de ejemplo' };
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
     gravity: 'Gravedad \u00b7 Gravedad', angle: 'Gravedad \u00b7 Direcci\u00f3n', floor: 'Gravedad \u00b7 Suelo', sides: 'Gravedad \u00b7 Lados', ceiling: 'Gravedad \u00b7 Techo', drag: 'Gravedad \u00b7 Resistencia del aire', quality: 'Gravedad \u00b7 Calidad',
@@ -382,9 +382,11 @@ var Gravedad = (function () {
   }
 
   // ---------- Particulas ----------
+  // La forma de ejemplo se crea una sola vez por composicion y se reutiliza (antes cada clic anadia otro circulo).
   function sampleShape(c) {
+    for (var i = 1; i <= c.numLayers; i++) if (String(c.layer(i).comment) === TAG.sample) return c.layer(i);
     var l = c.layers.addShape();
-    l.name = NAMES.particleShape;
+    l.name = NAMES.particleShape; l.comment = TAG.sample;
     var g = l.property('ADBE Root Vectors Group').addProperty('ADBE Vector Group'), v = g.property('ADBE Vectors Group');
     v.addProperty('ADBE Vector Shape - Ellipse').property('ADBE Vector Ellipse Size').setValue([36, 36]);
     v.addProperty('ADBE Vector Graphic - Fill').property('ADBE Vector Fill Color').setValue([1, 0.53, 0.61]);
@@ -393,9 +395,29 @@ var Gravedad = (function () {
   }
   function templateName(i) { return i ? N.template + ' ' + (i + 1) : N.template; }
   function particles() {
-    var c = comp(), sel = c.selectedLayers, chosen = [];
-    for (var i = 0; i < sel.length && chosen.length < MAX_TEMPLATES; i++) if (!sel[i].nullLayer && !isTagged(sel[i], 'gravedad:')) chosen.push(sel[i]);
+    var c = comp(), sel = c.selectedLayers, chosen = [], emitter = null;
+    for (var i = 0; i < sel.length; i++) {
+      if (isTagged(sel[i], TAG.emitter)) { if (!emitter) emitter = sel[i]; continue; }
+      if (chosen.length < MAX_TEMPLATES && !sel[i].nullLayer && !isTagged(sel[i], 'gravedad:')) chosen.push(sel[i]);
+    }
     for (i = 0; i < chosen.length; i++) validate(chosen[i]);
+    // Con un emisor seleccionado no se crea otro: las capas seleccionadas se anaden como formas de ese emisor.
+    if (emitter) {
+      if (!chosen.length) throw Error('Ya hay un emisor seleccionado. Selecciona tambi\u00e9n las capas que quieras a\u00f1adir como formas, o deselecci\u00f3nalo para crear otro emisor.');
+      return undo('Gravedad \u00b7 A\u00f1adir formas al emisor', function () {
+        var have = templatesOf(emitter, c), ids = {}, added = 0;
+        for (var a = 0; a < have.length; a++) ids[have[a].id] = true;
+        var slot = 0; while (slot < MAX_TEMPLATES && control(emitter, templateName(slot))) slot++;
+        for (var b = 0; b < chosen.length && slot < MAX_TEMPLATES; b++) {
+          if (ids[chosen[b].id]) continue;
+          addControl(emitter, 'ADBE Layer Control', templateName(slot)); control(emitter, templateName(slot)).property(1).setValue(chosen[b].index);
+          (function (tl) { unlocked(tl, function () { tl.enabled = false; }); }(chosen[b]));
+          slot++; added++;
+        }
+        select(c, [emitter]);
+        var s = summary(c); s.addedTemplates = added; return s;
+      });
+    }
     return undo('Gravedad \u00b7 Part\u00edculas', function () {
       if (!chosen.length) chosen.push(sampleShape(c));
       var l = guide(c, NAMES.emitter, TAG.emitter, [1, 0.6, 0.25], 'var w=effect("' + N.width + '")(1); [4,Math.max(w,1)]');
