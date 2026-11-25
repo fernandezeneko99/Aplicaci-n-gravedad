@@ -243,6 +243,7 @@ var Gravedad = (function () {
     if (isTagged(layer, TAG.world) || isTagged(layer, TAG.force) || isTagged(layer, TAG.emitter)) throw Error(layer.name + ': es un control de Gravedad.');
   }
   function makeBody(layer, type) {
+    if (type !== TYPE.dynamic) forgetSim(layer);
     addMenu(layer, N.type, ['Din\u00e1mico', 'Fijo', 'Desactivado'], type);
     control(layer, N.type).property(1).setValue(type);
     addMenu(layer, N.shape, ['Autom\u00e1tica', 'Caja', 'C\u00edrculo'], 1);
@@ -328,7 +329,7 @@ var Gravedad = (function () {
     });
     function applyValues(l) {
         if (!isBody(l)) makeBody(l, TYPE[values.type] || TYPE.dynamic);
-        if (values.type && TYPE[values.type]) setIfChanged(control(l, N.type).property(1), TYPE[values.type]);
+        if (values.type && TYPE[values.type]) { if (TYPE[values.type] !== TYPE.dynamic) forgetSim(l); setIfChanged(control(l, N.type).property(1), TYPE[values.type]); }
         for (var key in map) {
           if (!map.hasOwnProperty(key) || typeof values[key] !== 'number' || !isFinite(values[key])) continue;
           var fx = control(l, map[key][0]);
@@ -498,12 +499,12 @@ var Gravedad = (function () {
   }
 
   function describe(l, c, frames, dir, cache, kindOverride) {
-    var type = kindOverride || bodyType(l), span = spanOf(l, c, frames);
+    var resting = kindOverride === 'resting', type = resting ? 'fixed' : kindOverride || bodyType(l), span = spanOf(l, c, frames);
     if (type === 'off' || span.despawn <= span.spawn) return null;
     var t = frameTime(c, span.spawn), p = pose(l, t, rotationGuess(l, t)), geo = geometryOf(l, c, t, dir, cache);
     var body = { id: String(l.id), index: l.index, name: l.name, type: type === 'dynamic' ? 'dynamic' : 'static', spawn: span.spawn, despawn: span.despawn < frames ? span.despawn : null, pose: { x: round(p.x), y: round(p.y), a: round(p.a) }, matrix: p.m, material: material(l), note: geo.note };
     if (geo.shape) body.layerShape = geo.shape; else { body.raster = geo.raster; body.fallback = geo.fallback; }
-    if (type === 'fixed' && animated(l)) {
+    if (type === 'fixed' && !resting && animated(l)) {
       body.type = 'kinematic'; body.track = [];
       var prev = p.a;
       for (var k = span.spawn; k < (span.despawn || frames); k++) { var q = pose(l, frameTime(c, k), prev); prev = q.a; body.track.push([round(q.x), round(q.y), round(q.a)]); }
@@ -539,13 +540,15 @@ var Gravedad = (function () {
     var c = comp(), frames = frameCount(c), dir = arg.tempDir || Folder.temp.fsName, cache = {};
     var folder = new Folder(dir); if (!folder.exists) folder.create();
     var scene = { compId: c.id, fps: c.frameRate, frames: frames, start: c.workAreaStart, width: c.width, height: c.height, world: worldSettings(c), bodies: [], forces: [], emitters: [], problems: [] };
-    var i, k, l, templates = {}, emitterLayers = findAll(c, TAG.emitter);
+    var i, k, l, templates = {}, emitterLayers = findAll(c, TAG.emitter), simulatedBefore = simIds(c);
     for (i = 0; i < emitterLayers.length; i++) { var tl = templatesOf(emitterLayers[i], c); for (k = 0; k < tl.length; k++) templates[tl[k].id] = true; }
     for (i = 1; i <= c.numLayers; i++) {
       l = c.layer(i);
       if (!isBody(l) || templates[l.id]) continue;
       if (l.threeDLayer) { scene.problems.push(l.name + ': es 3D, se ignora.'); continue; }
-      try { var b = describe(l, c, frames, dir, cache); if (b) scene.bodies.push(b); }
+      // Si fue simulada y ya no es dinamica, sus claves son de la simulacion anterior: se usa su pose de partida.
+      var staleSim = simulatedBefore[String(l.id)] && bodyType(l) === 'fixed';
+      try { var b = describe(l, c, frames, dir, cache, staleSim ? 'resting' : undefined); if (b) scene.bodies.push(b); }
       catch (e) { scene.problems.push(l.name + ': ' + e.message); }
     }
     // Uniones definidas en los cuerpos.
@@ -689,7 +692,7 @@ var Gravedad = (function () {
     frames = res.frames;
     for (k = 0; k <= frames; k++) times.push(round(frameTime(c, k) * 1e6) / 1e6);
     return undo('Gravedad \u00b7 Simular', function () {
-      var written = 0, created = 0, problems = [];
+      var written = 0, created = 0, problems = [], before = simIds(c), now = {};
       keysWritten = 0;
       removeParticles(c);
       for (var id in res.bodies) {
@@ -701,7 +704,7 @@ var Gravedad = (function () {
             // La rotacion se escribe como giro relativo a la de partida; se lee antes de quitar el padre.
             var rot0 = rotationGuess(l, times[rec.from]);
             if (l.parent) l.parent = null;
-            writeMotion(l, c, rec, rot0, times); written++;
+            writeMotion(l, c, rec, rot0, times); written++; now[String(l.id)] = true;
             removeMarkers(l);
             if (res.markers && res.contacts && res.contacts[id]) for (var h = 0; h < res.contacts[id].length; h++) addMarker(l, times[res.contacts[id][h]]);
           });
@@ -733,29 +736,40 @@ var Gravedad = (function () {
         dup.moveBefore(tpl);
         created++;
       }
+      // Capas simuladas antes que ya no son dinamicas: vuelven a su pose de partida.
+      for (var old in before) if (before.hasOwnProperty(old) && !now[old]) { var ol = layerById(c, old); if (ol && !isTagged(ol, TAG.particle)) { try { unlocked(ol, function () { clearLayer(ol, c); }); } catch (eOld) { problems.push(ol.name + ': ' + eOld.message); } } }
       var hadWorld = !!find(c, TAG.world), w = ensureWorld(c), d = new Date();
       // Si el nulo de mundo se acaba de crear, la huella se recalcula (el mundo forma parte de ella).
       w.comment = TAG.world;
       var sig = hadWorld && arg.signature ? arg.signature : signature(c);
       w.comment = TAG.world + ';sig=' + sig + ';frames=' + frames + ';start=' + c.workAreaStart + ';fps=' + c.frameRate + ';date=' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+      setSimIds(c, now);
       var s = summary(c, true); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
     });
   }
 
   // Quita las claves que escribio la simulacion: la capa vuelve a su pose de partida.
-  function clear() {
-    var c = comp(), end = frameTime(c, frameCount(c));
-    return undo('Gravedad \u00b7 Borrar simulaci\u00f3n', function () {
-      var cleared = 0, removed = removeParticles(c);
-      for (var i = 1; i <= c.numLayers; i++) {
-        var l = c.layer(i);
-        if (!isBody(l) || bodyType(l) !== 'dynamic') continue;
-        if (unlocked(l, function () { return clearLayer(l); })) cleared++;
-      }
-      var w0 = find(c, TAG.world); if (w0) w0.comment = TAG.world;
-      var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; return s0;
-    });
-    function clearLayer(l) {
+  // ---------- Capas con claves de la simulacion ----------
+  // El nulo de mundo guarda los ids de las capas que recibieron claves. Asi, si una deja de ser dinamica (desde el panel
+  // o desde Controles de efectos), sus claves viejas no se confunden con una animacion propia.
+  function simIds(c) {
+    var w = find(c, TAG.world), out = {};
+    if (!w) return out;
+    var m = /;ids=([0-9,]*)/.exec(String(w.comment));
+    if (m && m[1]) { var list = m[1].split(','); for (var i = 0; i < list.length; i++) if (list[i]) out[list[i]] = true; }
+    return out;
+  }
+  function setSimIds(c, ids) {
+    var w = find(c, TAG.world);
+    if (!w) return;
+    var list = [];
+    for (var id in ids) if (ids.hasOwnProperty(id) && ids[id]) list.push(id);
+    var text = String(w.comment).replace(/;ids=[0-9,]*/, '');
+    w.comment = text + (list.length ? ';ids=' + list.join(',') : '');
+  }
+  // Devuelve la capa a su pose de partida quitando las claves del area de trabajo (las anteriores del usuario se quedan).
+  function clearLayer(l, c) {
+        var end = frameTime(c, frameCount(c));
         var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position'), R = tr.property('ADBE Rotate Z');
         var span = spanOf(l, c, frameCount(c)), t0 = frameTime(c, span.spawn), list = P.dimensionsSeparated ? [tr.property('ADBE Position_0'), tr.property('ADBE Position_1'), R] : [P, R], touched = false;
         for (var j = 0; j < list.length; j++) {
@@ -768,7 +782,28 @@ var Gravedad = (function () {
         }
         removeMarkers(l);
         return touched;
-    }
+  }
+  // Una capa simulada que deja de ser dinamica vuelve a su pose de partida.
+  function forgetSim(l) {
+    var c = l.containingComp, ids = simIds(c);
+    if (!ids[String(l.id)]) return false;
+    unlocked(l, function () { clearLayer(l, c); });
+    ids[String(l.id)] = false; setSimIds(c, ids);
+    return true;
+  }
+
+  function clear() {
+    var c = comp();
+    return undo('Gravedad \u00b7 Borrar simulaci\u00f3n', function () {
+      var cleared = 0, removed = removeParticles(c), ids = simIds(c);
+      for (var i = 1; i <= c.numLayers; i++) {
+        var l = c.layer(i);
+        if (!(ids[String(l.id)] || (isBody(l) && bodyType(l) === 'dynamic'))) continue;
+        if (unlocked(l, function () { return clearLayer(l, c); })) cleared++;
+      }
+      var w0 = find(c, TAG.world); if (w0) w0.comment = TAG.world;
+      var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; return s0;
+    });
   }
 
   function selectBodies(arg) {
