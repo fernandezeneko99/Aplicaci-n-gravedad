@@ -293,3 +293,46 @@ test('F4 · Tierra con una gravedad ya distinta de 0 no la cambia', () => {
   ok(h.call('world', { gravity: 2480 }));
   assert.strictEqual(ok(h.call('world', { environment: 'earth' })).world.gravity, 2480);
 });
+
+// ---------- F5: fuerzas acotadas a una capa ----------
+function fan(h, c) {
+  ok(h.call('world', { gravity: 0, floor: false, sides: false }));
+  ok(h.call('force', { type: 'wind' }));
+  const f = c._layers.find((l) => l.comment === 'gravedad:fuerza'); f.transform.rotation.setValue(0);
+  return f;
+}
+const ffx = (l, n) => l.property('ADBE Effect Parade').property('Gravedad · ' + n).property(1);
+test('F5 · por defecto el ventilador afecta a todas las capas (comportamiento anterior conservado)', async () => {
+  const { h, c } = setup(); fan(h, c);
+  const a = shape(c, 'a', [40, 40], [300, 300]), b = shape(c, 'b', [40, 40], [300, 500]);
+  sel(c, [a, b]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  assert.ok(a.transform.position.numKeys > 1 && b.transform.position.numKeys > 1);
+});
+test('F5 · «Solo a la capa» empuja solo a esa capa', async () => {
+  const { h, c } = setup(); const f = fan(h, c);
+  const a = shape(c, 'a', [40, 40], [300, 300]), b = shape(c, 'b', [40, 40], [300, 500]);
+  sel(c, [a, b]); ok(h.call('assign', { mode: 'dynamic' }));
+  ffx(f, 'A todas las capas')._value = 0; ffx(f, 'Solo a la capa').setValue(a.index);
+  await Pipeline.simulate(io(h));
+  assert.ok(a.transform.position.keys.slice(-1)[0].v[0] > 600, 'a empujada');
+  assert.deepStrictEqual(plain(b.transform.position.keys.slice(-1)[0].v), [300, 500], 'b quieta');
+});
+test('F5 · capa elegida borrada: la fuerza no se aplica a nadie y se avisa (no pasa a «todas»)', async () => {
+  const { h, c } = setup(); const f = fan(h, c);
+  const a = shape(c, 'a', [40, 40], [300, 300]), b = shape(c, 'b', [40, 40], [300, 500]);
+  sel(c, [b]); ok(h.call('assign', { mode: 'dynamic' }));
+  ffx(f, 'A todas las capas')._value = 0; ffx(f, 'Solo a la capa').setValue(a.index);
+  a.remove();
+  const out = await Pipeline.simulate(io(h));
+  assert.ok(out.warnings.some((w) => /esta fuerza no se aplica/.test(w)));
+  assert.deepStrictEqual(plain(b.transform.position.keys.slice(-1)[0].v), [300, 500]);
+});
+test('F5 · fuerza acotada a un emisor: solo sus partículas, no las de otro emisor ni los cuerpos', () => {
+  const r = Sim.run({ fps: 25, frames: 40, width: 1920, height: 1080, world: { gravity: 0 },
+    forces: [{ type: 'wind', only: 'e1', track: [[0, 0, 0, 800, 0]] }],
+    emitters: [{ id: 'e1', max: 5, seed: 1, shape: { kind: 'circle', r: 5 }, track: [[500, 300, 90, 50, 0, 0, 0]] }, { id: 'e2', max: 5, seed: 2, shape: { kind: 'circle', r: 5 }, track: [[500, 700, 90, 50, 0, 0, 0]] }],
+    bodies: [{ id: 'b', type: 'dynamic', pose: { x: 500, y: 900 }, shape: { kind: 'box', w: 20, h: 20 } }] });
+  r.particles.forEach((p) => { const moved = p.data[p.data.length - 3] - p.data[0]; if (p.emitter === 'e1') assert.ok(moved > 10); else assert.ok(Math.abs(moved) < 1e-6); });
+  assert.strictEqual(r.bodies.b.data.slice(-3)[0], 500);
+});

@@ -12,7 +12,7 @@ var Gravedad = (function () {
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
     gravity: 'Gravedad \u00b7 Gravedad', angle: 'Gravedad \u00b7 Direcci\u00f3n', floor: 'Gravedad \u00b7 Suelo', sides: 'Gravedad \u00b7 Lados', ceiling: 'Gravedad \u00b7 Techo', drag: 'Gravedad \u00b7 Resistencia del aire', quality: 'Gravedad \u00b7 Calidad',
-    forceType: 'Gravedad \u00b7 Tipo de fuerza', strength: 'Gravedad \u00b7 Intensidad', range: 'Gravedad \u00b7 Alcance',
+    forceType: 'Gravedad \u00b7 Tipo de fuerza', strength: 'Gravedad \u00b7 Intensidad', range: 'Gravedad \u00b7 Alcance', forceAll: 'Gravedad \u00b7 A todas las capas', forceOnly: 'Gravedad \u00b7 Solo a la capa',
     template: 'Gravedad \u00b7 Capa de part\u00edcula', rate: 'Gravedad \u00b7 Ritmo', max: 'Gravedad \u00b7 M\u00e1ximo', speed: 'Gravedad \u00b7 Velocidad', spread: 'Gravedad \u00b7 Dispersi\u00f3n', width: 'Gravedad \u00b7 Anchura', life: 'Gravedad \u00b7 Vida', size: 'Gravedad \u00b7 Tama\u00f1o', sizeVar: 'Gravedad \u00b7 Variaci\u00f3n de tama\u00f1o', spin: 'Gravedad \u00b7 Giro', seed: 'Gravedad \u00b7 Semilla', fade: 'Gravedad \u00b7 Desvanecer',
     impulse: 'Gravedad \u00b7 Impulso', impulseAngle: 'Gravedad \u00b7 Direcci\u00f3n del impulso', spinStart: 'Gravedad \u00b7 Giro inicial',
     joint: 'Gravedad \u00b7 Uni\u00f3n', jointTo: 'Gravedad \u00b7 Unida a', stiffness: 'Gravedad \u00b7 Rigidez del muelle', damping: 'Gravedad \u00b7 Amortiguaci\u00f3n',
@@ -393,6 +393,9 @@ var Gravedad = (function () {
       addMenu(l, N.forceType, ['Viento', 'Atracci\u00f3n'], attract ? 2 : 1);
       addControl(l, 'ADBE Slider Control', N.strength, attract ? 800 : 600);
       addControl(l, 'ADBE Slider Control', N.range, attract ? Math.round(Math.min(c.width, c.height) / 3) : 0);
+      // Alcance por capas: con la casilla apagada solo empuja a la capa elegida (un cuerpo, o un emisor = sus particulas).
+      addControl(l, 'ADBE Checkbox Control', N.forceAll, 1);
+      addControl(l, 'ADBE Layer Control', N.forceOnly);
       if (!attract) l.transform.rotation.setValue(-90);
       select(c, [l]);
       return summary(c);
@@ -607,6 +610,11 @@ var Gravedad = (function () {
     for (i = 0; i < forces.length; i++) {
       l = forces[i]; var f = { id: String(l.id), type: Math.round(read(l, N.forceType, 1)) === 2 ? 'attract' : 'wind', track: [] }, span = spanOf(l, c, frames), prev;
       if (!l.enabled) continue;
+      if (control(l, N.forceAll) && !read(l, N.forceAll, 1)) {
+        var oi = Math.round(read(l, N.forceOnly, 0));
+        if (oi < 1 || oi > c.numLayers || c.layer(oi) === l) { scene.problems.push(l.name + ': elige la capa en \u00ab' + N.forceOnly + '\u00bb o activa \u00ab' + N.forceAll + '\u00bb; esta fuerza no se aplica.'); continue; }
+        f.only = String(c.layer(oi).id);
+      }
       for (k = 0; k < frames; k++) {
         var tt = frameTime(c, k), q = pose(l, tt, prev); prev = q.a;
         var on = k >= span.spawn && k < span.despawn;

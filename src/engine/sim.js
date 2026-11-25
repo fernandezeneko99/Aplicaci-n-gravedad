@@ -347,6 +347,7 @@
           var n = attach(body, scalePieces(em.built[which], size), (e.materials && e.materials[which]) || e.material || {});
           if (!n) { world.destroyBody(body); continue; }
           body.setLinearVelocity(Vec2(Math.cos(dir) * v / PPM, Math.sin(dir) * v / PPM));
+          body.gravedadEmitter = e.id;
           if (e.spin) body.setAngularVelocity(rad((r() * 2 - 1) * e.spin));
           var rec = { emitter: e.id, template: which, index: em.count, from: k, to: null, scale: round(size, 4), data: [] };
           out.particles.push(rec);
@@ -360,11 +361,13 @@
     function applyForces(k) {
       if (!forces.length) return;
       for (var i = 0; i < forces.length; i++) {
-        var f = at(forces[i].track, k), fx = f[0] / PPM, fy = f[1] / PPM, fa = rad(f[2]), strength = f[3] / PPM, radius = (f[4] || 0) / PPM, type = forces[i].type;
+        var f = at(forces[i].track, k), fx = f[0] / PPM, fy = f[1] / PPM, fa = rad(f[2]), strength = f[3] / PPM, radius = (f[4] || 0) / PPM, type = forces[i].type, only = forces[i].only;
         if (!strength) continue;
         for (var j = 0; j < live.length; j++) {
           var body = live[j].body;
           if (!body || body.getType() !== 'dynamic') continue;
+          // Fuerza acotada a una capa: ese cuerpo, o las partículas de ese emisor.
+          if (only && body.getUserData() !== only && body.gravedadEmitter !== only) continue;
           var p = body.getWorldCenter(), dx = fx - p.x, dy = fy - p.y, d = Math.sqrt(dx * dx + dy * dy), fall = 1;
           if (radius > 0) { if (d >= radius) continue; var t = d / radius; fall = 1 - t * t * (3 - 2 * t); }
           var m = body.getMass() * strength * fall, ax, ay;
