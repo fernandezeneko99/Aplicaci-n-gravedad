@@ -186,7 +186,7 @@ function deepCopyGroup(g, parent, comp) {
   const n = Object.create(Object.getPrototypeOf(g));
   Object.assign(n, g); n.parentProperty = parent;
   if (g._children) n._children = g._children.map((c) => deepCopyGroup(c, n, comp));
-  if (g.keys) { n.keys = g.keys.map((k) => ({ t: k.t, v: clone(k.v) })); n._value = clone(g._value); if (g.ownerTime) n.ownerTime = () => comp.time; }
+  if (g.keys) { n.keys = g.keys.map((k) => (k.a ? { t: k.t, v: clone(k.v), a: clone(k.a) } : { t: k.t, v: clone(k.v) })); n._value = clone(g._value); if (g.ownerTime) n.ownerTime = () => comp.time; }
   return n;
 }
 class AVLayer extends Layer {}
@@ -266,17 +266,40 @@ const MockAE = {
   }
 };
 
+// ---------- Deshacer ----------
+// Cada grupo de deshacer guarda una instantánea del proyecto (capas, propiedades, claves, efectos, comentarios, marcadores,
+// padres); MockAE.undo() vuelve a la anterior al último grupo. Las capas restauradas son objetos nuevos con el mismo id.
+function cloneLayer(l, comp) {
+  const d = Object.create(Object.getPrototypeOf(l));
+  Object.assign(d, l); d.containingComp = comp; d._root = deepCopyGroup(l._root, null, comp); d._root._layer = d;
+  return d;
+}
+function snapshot(project) {
+  return { items: project._items.slice(), comps: project._items.filter((it) => it instanceof CompItem).map((c) => ({ c, time: c.time, start: c.workAreaStart, dur: c.workAreaDuration, layers: c._layers.map((l) => cloneLayer(l, c)) })) };
+}
+function restore(project, snap) {
+  project._items = snap.items.slice();
+  for (const s of snap.comps) {
+    s.c.workAreaStart = s.start; // Deshacer en After no mueve el cursor de tiempo. s.c.workAreaDuration = s.dur;
+    s.c._layers = s.layers.map((l) => cloneLayer(l, s.c));
+    const byId = new Map(s.c._layers.map((l) => [l.id, l]));
+    s.c._layers.forEach((l) => { if (l._parent) l._parent = byId.get(l._parent.id) || l._parent; });
+  }
+}
+MockAE.undoStack = [];
+MockAE.undo = function (project) { const u = MockAE.undoStack.pop(); if (!u) throw Error('nada que deshacer'); restore(project, u.snap); return u.name; };
+
 // Crea un contexto con `app` y los globales de ExtendScript y carga gravedad.jsx.
 function createHost(hostDir, reuse) {
   if (reuse) return makeContext(hostDir, reuse.project, reuse.app);
-  nextId = 1;
+  nextId = 1; MockAE.undoStack = [];
   MockAE.stats = { setValuesAtTimes: 0, pngs: 0, undoOpen: 0, undoGroups: [] };
   const project = { _items: [], get numItems() { return this._items.length; }, item(i) { return this._items[i - 1]; }, itemByID(id) { const it = this._items.find((x) => x.id === id); if (!it) throw Error('no existe'); return it; }, activeItem: null,
     items: { addComp(name, w, h, pa, dur, fps) { const c = new CompItem(name, w, h, pa, dur, fps); project._items.push(c); return c; }, addFolder(name) { const f = new FolderItem(name); project._items.push(f); return f; } } };
   MockAE.project = project;
   const app = {
     project,
-    beginUndoGroup(n) { if (MockAE.stats.undoOpen) throw Error('grupo de deshacer anidado: ' + n); MockAE.stats.undoOpen++; MockAE.stats.undoGroups.push(n); },
+    beginUndoGroup(n) { if (MockAE.stats.undoOpen) throw Error('grupo de deshacer anidado: ' + n); MockAE.stats.undoOpen++; MockAE.stats.undoGroups.push(n); MockAE.undoStack.push({ name: n, snap: snapshot(project) }); },
     endUndoGroup() { MockAE.stats.undoOpen--; },
     beginSuppressDialogs() {}, endSuppressDialogs() {},
     activeViewer: null
