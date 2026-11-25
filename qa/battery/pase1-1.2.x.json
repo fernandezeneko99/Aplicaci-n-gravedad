@@ -1,0 +1,957 @@
+{
+ "motor": "3cfed85fee26ea5d",
+ "fecha": "2026-11-25T15:55:50.513Z",
+ "escenasEjecutadas": 10800,
+ "escenasDistintas": 10800,
+ "repeticionesDeterminismo": 1080,
+ "determinismoFallido": 0,
+ "estres": 0,
+ "segundosCpu": 527,
+ "escenasConFallo": 102,
+ "familias": {
+  "caida": {
+   "escenas": 800,
+   "fallos": 4,
+   "determinismo": 80,
+   "ms": 826,
+   "tipos": {
+    "caída libre": 4
+   }
+  },
+  "inercia": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 322,
+   "tipos": {}
+  },
+  "reposo": {
+   "escenas": 900,
+   "fallos": 0,
+   "determinismo": 90,
+   "ms": 6232,
+   "tipos": {}
+  },
+  "contencion": {
+   "escenas": 800,
+   "fallos": 30,
+   "determinismo": 80,
+   "ms": 153713,
+   "tipos": {
+    "contención": 29,
+    "penetración": 2
+   }
+  },
+  "paredFina": {
+   "escenas": 800,
+   "fallos": 3,
+   "determinismo": 80,
+   "ms": 648,
+   "tipos": {
+    "pared fina (dynamic)": 3
+   }
+  },
+  "anillo": {
+   "escenas": 700,
+   "fallos": 0,
+   "determinismo": 70,
+   "ms": 51079,
+   "tipos": {}
+  },
+  "fuerzas": {
+   "escenas": 700,
+   "fallos": 36,
+   "determinismo": 70,
+   "ms": 500,
+   "tipos": {
+    "fuerza acotada (cuerpo)": 34,
+    "fuerza acotada (emisor)": 2
+   }
+  },
+  "emisores": {
+   "escenas": 700,
+   "fallos": 6,
+   "determinismo": 70,
+   "ms": 21142,
+   "tipos": {
+    "dispersión": 6
+   }
+  },
+  "uniones": {
+   "escenas": 600,
+   "fallos": 1,
+   "determinismo": 60,
+   "ms": 1456,
+   "tipos": {
+    "cadena": 1
+   }
+  },
+  "pilas": {
+   "escenas": 600,
+   "fallos": 4,
+   "determinismo": 60,
+   "ms": 44557,
+   "tipos": {
+    "penetración": 4
+   }
+  },
+  "animados": {
+   "escenas": 600,
+   "fallos": 0,
+   "determinismo": 60,
+   "ms": 6618,
+   "tipos": {}
+  },
+  "superpuestos": {
+   "escenas": 500,
+   "fallos": 16,
+   "determinismo": 50,
+   "ms": 4749,
+   "tipos": {
+    "separación sin explosión": 16
+   }
+  },
+  "duplicados": {
+   "escenas": 500,
+   "fallos": 2,
+   "determinismo": 50,
+   "ms": 6668,
+   "tipos": {
+    "identidad independiente": 2
+   }
+  },
+  "rejilla": {
+   "escenas": 1800,
+   "fallos": 0,
+   "determinismo": 180,
+   "ms": 5656,
+   "tipos": {}
+  },
+  "aleatorias": {
+   "escenas": 100,
+   "fallos": 0,
+   "determinismo": 10,
+   "ms": 222429,
+   "tipos": {}
+  }
+ },
+ "estresDetalle": [],
+ "fallos": [
+  {
+   "family": "caida",
+   "seed": 520,
+   "check": "caída libre",
+   "expected": "(959.24, 539.87) ±0.60",
+   "observed": "(959.876, 539.979)",
+   "frame": 62
+  },
+  {
+   "family": "caida",
+   "seed": 584,
+   "check": "caída libre",
+   "expected": "(959.62, 539.31) ±0.60",
+   "observed": "(959.939, 539.889)",
+   "frame": 17
+  },
+  {
+   "family": "caida",
+   "seed": 662,
+   "check": "caída libre",
+   "expected": "(959.50, 540.60) ±0.60",
+   "observed": "(959.918, 540.097)",
+   "frame": 153
+  },
+  {
+   "family": "caida",
+   "seed": 772,
+   "check": "caída libre",
+   "expected": "(959.61, 539.34) ±0.60",
+   "observed": "(959.937, 539.892)",
+   "frame": 62
+  },
+  {
+   "family": "contencion",
+   "seed": 110,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 8.10 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 128,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 5.37 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 160,
+   "check": "penetración",
+   "expected": "≤ 2.65 px",
+   "observed": "b1↔b12 2.79 px",
+   "frame": 51
+  },
+  {
+   "family": "contencion",
+   "seed": 167,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b23 sale 7.64 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 196,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b3 sale 7.08 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 197,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b2 sale 14.45 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 261,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b2 sale 18.75 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 265,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 6.43 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 270,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 15.81 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 279,
+   "check": "penetración",
+   "expected": "≤ 3.03 px",
+   "observed": "b0↔b1 3.83 px",
+   "frame": 101
+  },
+  {
+   "family": "contencion",
+   "seed": 287,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 7.90 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 10,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b6 sale 17.19 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 12,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b11 sale 18.06 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 60,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b2 sale 8.88 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 87,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 10.27 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 94,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b17 sale 9.23 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 316,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b4 sale 5.15 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 328,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 3.79 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 345,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b5 sale 6.60 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 456,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 3.89 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 480,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 12.41 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 501,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b4 sale 3.01 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 538,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 7.70 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 548,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 18.50 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 552,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b5 sale 5.57 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 596,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b3 sale 8.01 px",
+   "frame": 0
+  },
+  {
+   "family": "paredFina",
+   "seed": 75,
+   "check": "pared fina (dynamic)",
+   "expected": "no atraviesa una pared de 1.6 px a 23329 px/s",
+   "observed": "al otro lado (4514.4 px)",
+   "frame": 27
+  },
+  {
+   "family": "paredFina",
+   "seed": 226,
+   "check": "pared fina (dynamic)",
+   "expected": "no atraviesa una pared de 1.8 px a 24888 px/s",
+   "observed": "al otro lado (4279.4 px)",
+   "frame": 24
+  },
+  {
+   "family": "paredFina",
+   "seed": 468,
+   "check": "pared fina (dynamic)",
+   "expected": "no atraviesa una pared de 1.7 px a 28385 px/s",
+   "observed": "al otro lado (4447.4 px)",
+   "frame": 22
+  },
+  {
+   "family": "contencion",
+   "seed": 649,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 7.44 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 657,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 6.19 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 724,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b1 sale 6.79 px",
+   "frame": 0
+  },
+  {
+   "family": "contencion",
+   "seed": 759,
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b5 sale 4.95 px",
+   "frame": 0
+  },
+  {
+   "family": "fuerzas",
+   "seed": 29,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 384.620 px",
+   "frame": 25
+  },
+  {
+   "family": "fuerzas",
+   "seed": 57,
+   "check": "fuerza acotada (emisor)",
+   "expected": "b2 quieto",
+   "observed": "se movió 75.225 px",
+   "frame": 46
+  },
+  {
+   "family": "fuerzas",
+   "seed": 74,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 157.107 px",
+   "frame": 23
+  },
+  {
+   "family": "fuerzas",
+   "seed": 131,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 788.889 px",
+   "frame": 47
+  },
+  {
+   "family": "fuerzas",
+   "seed": 179,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b0 quieto",
+   "observed": "se movió 647.197 px",
+   "frame": 31
+  },
+  {
+   "family": "fuerzas",
+   "seed": 182,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 169.651 px",
+   "frame": 30
+  },
+  {
+   "family": "fuerzas",
+   "seed": 211,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 268.599 px",
+   "frame": 29
+  },
+  {
+   "family": "fuerzas",
+   "seed": 249,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 258.502 px",
+   "frame": 32
+  },
+  {
+   "family": "fuerzas",
+   "seed": 270,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 764.059 px",
+   "frame": 42
+  },
+  {
+   "family": "fuerzas",
+   "seed": 277,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 206.599 px",
+   "frame": 49
+  },
+  {
+   "family": "fuerzas",
+   "seed": 284,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 406.528 px",
+   "frame": 36
+  },
+  {
+   "family": "fuerzas",
+   "seed": 302,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 32.712 px",
+   "frame": 37
+  },
+  {
+   "family": "fuerzas",
+   "seed": 313,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 792.701 px",
+   "frame": 33
+  },
+  {
+   "family": "fuerzas",
+   "seed": 334,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 90.906 px",
+   "frame": 46
+  },
+  {
+   "family": "fuerzas",
+   "seed": 353,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 279.853 px",
+   "frame": 40
+  },
+  {
+   "family": "fuerzas",
+   "seed": 361,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 427.716 px",
+   "frame": 34
+  },
+  {
+   "family": "fuerzas",
+   "seed": 363,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b0 quieto",
+   "observed": "se movió 71.306 px",
+   "frame": 27
+  },
+  {
+   "family": "fuerzas",
+   "seed": 366,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b0 quieto",
+   "observed": "se movió 708.434 px",
+   "frame": 31
+  },
+  {
+   "family": "fuerzas",
+   "seed": 424,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 3760.753 px",
+   "frame": 48
+  },
+  {
+   "family": "fuerzas",
+   "seed": 431,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 394.553 px",
+   "frame": 28
+  },
+  {
+   "family": "fuerzas",
+   "seed": 437,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 360.370 px",
+   "frame": 41
+  },
+  {
+   "family": "fuerzas",
+   "seed": 460,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 100.748 px",
+   "frame": 33
+  },
+  {
+   "family": "fuerzas",
+   "seed": 462,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 69.389 px",
+   "frame": 13
+  },
+  {
+   "family": "fuerzas",
+   "seed": 469,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 9.525 px",
+   "frame": 18
+  },
+  {
+   "family": "fuerzas",
+   "seed": 472,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 154.932 px",
+   "frame": 10
+  },
+  {
+   "family": "fuerzas",
+   "seed": 488,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 479.075 px",
+   "frame": 14
+  },
+  {
+   "family": "fuerzas",
+   "seed": 542,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 115.181 px",
+   "frame": 22
+  },
+  {
+   "family": "fuerzas",
+   "seed": 543,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b0 quieto",
+   "observed": "se movió 219.508 px",
+   "frame": 29
+  },
+  {
+   "family": "fuerzas",
+   "seed": 545,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 925.725 px",
+   "frame": 45
+  },
+  {
+   "family": "fuerzas",
+   "seed": 582,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 18.165 px",
+   "frame": 40
+  },
+  {
+   "family": "fuerzas",
+   "seed": 605,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 551.249 px",
+   "frame": 21
+  },
+  {
+   "family": "fuerzas",
+   "seed": 609,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 346.382 px",
+   "frame": 30
+  },
+  {
+   "family": "fuerzas",
+   "seed": 658,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 149.235 px",
+   "frame": 26
+  },
+  {
+   "family": "fuerzas",
+   "seed": 675,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b3 quieto",
+   "observed": "se movió 946.083 px",
+   "frame": 21
+  },
+  {
+   "family": "fuerzas",
+   "seed": 680,
+   "check": "fuerza acotada (emisor)",
+   "expected": "b0 quieto",
+   "observed": "se movió 39.147 px",
+   "frame": 40
+  },
+  {
+   "family": "fuerzas",
+   "seed": 684,
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b2 quieto",
+   "observed": "se movió 139.512 px",
+   "frame": 39
+  },
+  {
+   "family": "emisores",
+   "seed": 16,
+   "check": "dispersión",
+   "expected": "≤ 52.8°",
+   "observed": "68.8°",
+   "frame": 41
+  },
+  {
+   "family": "emisores",
+   "seed": 110,
+   "check": "dispersión",
+   "expected": "≤ 68.8°",
+   "observed": "94.2°",
+   "frame": 46
+  },
+  {
+   "family": "emisores",
+   "seed": 164,
+   "check": "dispersión",
+   "expected": "≤ 33.0°",
+   "observed": "38.0°",
+   "frame": 52
+  },
+  {
+   "family": "emisores",
+   "seed": 339,
+   "check": "dispersión",
+   "expected": "≤ 10.8°",
+   "observed": "48.9°",
+   "frame": 46
+  },
+  {
+   "family": "uniones",
+   "seed": 185,
+   "check": "cadena",
+   "expected": "eslabones unidos (±2,5 px)",
+   "observed": "separación 2.78 px en el eslabón 2",
+   "frame": 27
+  },
+  {
+   "family": "emisores",
+   "seed": 500,
+   "check": "dispersión",
+   "expected": "≤ 13.3°",
+   "observed": "68.5°",
+   "frame": 5
+  },
+  {
+   "family": "emisores",
+   "seed": 697,
+   "check": "dispersión",
+   "expected": "≤ 14.0°",
+   "observed": "152.6°",
+   "frame": 15
+  },
+  {
+   "family": "pilas",
+   "seed": 110,
+   "check": "penetración",
+   "expected": "≤ 2.93 px",
+   "observed": "s10↔s11 4.71 px",
+   "frame": 132
+  },
+  {
+   "family": "pilas",
+   "seed": 461,
+   "check": "penetración",
+   "expected": "≤ 2.99 px",
+   "observed": "s0↔s1 8.09 px",
+   "frame": 20
+  },
+  {
+   "family": "pilas",
+   "seed": 319,
+   "check": "penetración",
+   "expected": "≤ 2.89 px",
+   "observed": "s10↔s11 5.07 px",
+   "frame": 73
+  },
+  {
+   "family": "pilas",
+   "seed": 361,
+   "check": "penetración",
+   "expected": "≤ 3.16 px",
+   "observed": "s0↔s1 4.13 px",
+   "frame": 68
+  },
+  {
+   "family": "superpuestos",
+   "seed": 101,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 8204 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 110,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6724 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 118,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 7580 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 120,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 13496 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 127,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6387 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 187,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6298 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 194,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 8063 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 195,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 8330 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 16,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 7338 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 63,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6905 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 90,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6772 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 253,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6041 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 287,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 9098 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 330,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6920 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 386,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 7439 px/s",
+   "frame": 1
+  },
+  {
+   "family": "superpuestos",
+   "seed": 387,
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6568 px/s",
+   "frame": 1
+  },
+  {
+   "family": "duplicados",
+   "seed": 15,
+   "check": "identidad independiente",
+   "expected": "el original no cambia por tener copias (antes de tocarse, fotograma 75)",
+   "observed": "trayectoria distinta",
+   "frame": 71
+  },
+  {
+   "family": "duplicados",
+   "seed": 443,
+   "check": "identidad independiente",
+   "expected": "el original no cambia por tener copias (antes de tocarse, fotograma 35)",
+   "observed": "trayectoria distinta",
+   "frame": 28
+  }
+ ]
+}

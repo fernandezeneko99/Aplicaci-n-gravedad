@@ -1,0 +1,68 @@
+{
+ "family": "fuerzas",
+ "seed": 284,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b1 quieto",
+   "observed": "se movió 406.528 px",
+   "frame": 36
+  }
+ ],
+ "scene": {
+  "fps": 23.976,
+  "frames": 37,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 0
+  },
+  "bodies": [
+   {
+    "id": "b0",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 120,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b1",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 280,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   }
+  ],
+  "forces": [
+   {
+    "type": "attract",
+    "only": "b0",
+    "track": [
+     [
+      300,
+      900,
+      -64.88780309446156,
+      829.1831424226984,
+      0
+     ]
+    ]
+   }
+  ],
+  "emitters": []
+ }
+}

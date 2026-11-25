@@ -1,0 +1,59 @@
+{
+ "family": "paredFina",
+ "seed": 75,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "pared fina (dynamic)",
+   "expected": "no atraviesa una pared de 1.6 px a 23329 px/s",
+   "observed": "al otro lado (4514.4 px)",
+   "frame": 27
+  }
+ ],
+ "scene": {
+  "fps": 23.976,
+  "frames": 36,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 0,
+   "quality": 480
+  },
+  "bodies": [
+   {
+    "id": "w",
+    "type": "dynamic",
+    "pose": {
+     "x": 1200,
+     "y": 540,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 1.6203943137079477,
+     "h": 700
+    },
+    "material": {
+     "density": 20
+    }
+   },
+   {
+    "id": "b",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 363.3185287564993,
+     "a": 0
+    },
+    "velocity": {
+     "x": 23328.91837018542,
+     "y": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 8.390264456160367
+    }
+   }
+  ]
+ }
+}

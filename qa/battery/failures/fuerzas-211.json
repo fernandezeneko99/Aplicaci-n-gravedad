@@ -1,0 +1,106 @@
+{
+ "family": "fuerzas",
+ "seed": 211,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "fuerza acotada (cuerpo)",
+   "expected": "b4 quieto",
+   "observed": "se movió 268.599 px",
+   "frame": 29
+  }
+ ],
+ "scene": {
+  "fps": 23.976,
+  "frames": 30,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 0
+  },
+  "bodies": [
+   {
+    "id": "b0",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 120,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b1",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 280,
+     "a": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 20
+    }
+   },
+   {
+    "id": "b2",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 440,
+     "a": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 20
+    }
+   },
+   {
+    "id": "b3",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 600,
+     "a": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 20
+    }
+   },
+   {
+    "id": "b4",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 760,
+     "a": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 20
+    }
+   }
+  ],
+  "forces": [
+   {
+    "type": "attract",
+    "only": "b3",
+    "track": [
+     [
+      300,
+      900,
+      76.34842271916568,
+      917.6513483980671,
+      0
+     ]
+    ]
+   }
+  ],
+  "emitters": []
+ }
+}

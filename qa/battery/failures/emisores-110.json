@@ -1,0 +1,49 @@
+{
+ "family": "emisores",
+ "seed": 110,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "dispersión",
+   "expected": "≤ 68.8°",
+   "observed": "94.2°",
+   "frame": 46
+  }
+ ],
+ "scene": {
+  "fps": 120,
+  "frames": 50,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 0
+  },
+  "emitters": [
+   {
+    "id": "e",
+    "from": 0,
+    "to": null,
+    "max": 232,
+    "lifetime": 0,
+    "seed": 926871,
+    "speedVariation": 0,
+    "spin": 0,
+    "shape": {
+     "kind": "circle",
+     "r": 2.3552049509016797
+    },
+    "track": [
+     [
+      960,
+      540,
+      153.09945004060864,
+      174.19332028254865,
+      73.71461694128811,
+      137.61238545645028,
+      593.6010885983706
+     ]
+    ]
+   }
+  ]
+ }
+}

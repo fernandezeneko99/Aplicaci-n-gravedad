@@ -203,7 +203,7 @@
   // ---------- Acciones ----------
   function assign(mode) {
     return run(async function () {
-      var d = await call('assign', { mode: mode }); render(d);
+      var d = await call('assign', { mode: mode }); paint(d);
       status((mode === 'dynamic' ? 'Dinámico' : 'Fijo') + ' · ' + plural(d.assigned, 'capa', 'capas') + '. Ajusta el material en «Capas seleccionadas» y pulsa Simular.', 'ok');
       $('inspector').open = true;
     });
@@ -213,13 +213,13 @@
   $('force').onclick = function (e) {
     var attract = e.altKey;
     run(async function () {
-      render(await call('force', { type: attract ? 'attract' : 'wind' }));
+      paint(await call('force', { type: attract ? 'attract' : 'wind' }));
       status(attract ? 'Atractor creado: atrae a los cuerpos dentro de su círculo. Intensidad negativa = repulsor.' : 'Ventilador creado: gira la flecha para orientarlo; Intensidad y Alcance (0 = toda la composición) en Controles de efectos.', 'ok');
     });
   };
   $('particles').onclick = function () {
     run(async function () {
-      var d = await call('particles'); render(d);
+      var d = await call('particles'); paint(d);
       if (d.addedTemplates !== undefined) { status(d.addedTemplates ? plural(d.addedTemplates, 'forma añadida', 'formas añadidas') + ' al emisor: cada partícula elige una al azar.' : 'Esas capas ya eran formas de este emisor.', 'ok'); return; }
       status('Emisor creado: muévelo y gíralo. Ritmo, Máximo, Velocidad, Vida, Tamaño y Desvanecer en Controles de efectos. Pulsa Simular para generar las partículas.', 'ok');
     });
@@ -227,18 +227,18 @@
   $('join').onclick = function () {
     var type = $('jointType').value, names = { pivot: 'Pivote', distance: 'Barra rígida', spring: 'Muelle' };
     run(async function () {
-      var d = await call('join', { type: type }); render(d);
+      var d = await call('join', { type: type }); paint(d);
       status(names[type] + (d.joined === 1 ? ': la capa queda colgada de su punto de anclaje.' : ': capas unidas por sus puntos de anclaje.') + ' Rigidez y amortiguación en Controles de efectos.', 'ok');
     });
   };
   function worldChange(patch, message) {
-    return run(async function () { render(await call('world', patch)); if (message) status(message, 'ok'); }).then(function () { if (summary) render(summary); });
+    return run(async function () { paint(await call('world', patch)); if (message) status(message, 'ok'); }).then(function () { if (summary) paint(summary); });
   }
   $('environment').onchange = function () { worldChange({ environment: this.checked ? 'space' : 'earth' }, this.checked ? 'Espacio · sin gravedad. Las fuerzas siguen activas.' : 'Gravedad restaurada.'); };
   $('walls').onchange = function () { worldChange({ walls: this.checked }, this.checked ? 'Paredes · el suelo y los lados de la composición contienen los objetos.' : 'Sin paredes · los objetos pueden salir de la composición.'); };
   $('clear').onclick = function () {
     run(async function () {
-      var d = await call('clear'); render(d); last = null; showViewer(false); meter.set({ contacts: [] });
+      var d = await call('clear'); paint(d); last = null; showViewer(false); meter.set({ contacts: [] });
       if (d.legacy && d.legacy.length) warnings(['Sin datos para distinguir sus claves de las tuyas (versión anterior, capa duplicada o nulo de mundo borrado); no se han tocado: ' + d.legacy.join(', ') + '. Usa Ctrl/Cmd+Z o bórralas a mano.']);
       status(d.cleared || d.removed ? 'Simulación borrada: ' + plural(d.cleared, 'capa', 'capas') + ' en su pose de partida' + (d.removed ? ' y ' + plural(d.removed, 'partícula eliminada', 'partículas eliminadas') : '') + '.' : 'No había simulación que borrar.', 'ok');
     });
@@ -277,7 +277,7 @@
       warnings(out.warnings);
       var s = out.summary, st = out.stats;
       simulating = false;
-      render(s);
+      paint(s);
       meter.set({ contacts: out.scene.world.markers ? contacts : [] });
       status('Simulado en ' + secs(st.seconds) + ' (' + num(st.frames / Math.max(0.001, st.seconds)) + ' fps) · ' + plural(s.written, 'capa animada', 'capas animadas') + (s.created ? ' · ' + plural(s.created, 'partícula', 'partículas') : '') + (s.keys ? ' · ' + num(s.keys) + ' claves' : '') + '. Reproduce la composición; Ctrl/Cmd+Z lo deshace.', 'ok');
       setupViewer(out);
@@ -297,7 +297,7 @@
     clearTimeout(bodiesTimer);
     bodiesTimer = setTimeout(function () {
       var v = pendingBodies; pendingBodies = {};
-      call('bodies', { values: v }).then(function (d) { render(d); status('Ajustado en ' + plural(d.changed, 'capa', 'capas') + '. Vuelve a simular para ver el cambio.', 'ok'); }).catch(function (e) { status(e.message, 'error'); });
+      call('bodies', { values: v }).then(function (d) { paint(d); status('Ajustado en ' + plural(d.changed, 'capa', 'capas') + '. Vuelve a simular para ver el cambio.', 'ok'); }).catch(function (e) { status(e.message, 'error'); });
     }, now ? 0 : 280);
   }
   MATERIALS.forEach(function (m, i) {
@@ -327,7 +327,7 @@
     clearTimeout(worldTimer);
     worldTimer = setTimeout(function () {
       var v = pendingWorld; pendingWorld = {};
-      call('world', v).then(function (d) { render(d); }).catch(function (e) { status(e.message, 'error'); });
+      call('world', v).then(function (d) { paint(d); }).catch(function (e) { status(e.message, 'error'); });
     }, now ? 0 : 280);
   }
   PLANETS.forEach(function (p) {
@@ -438,17 +438,26 @@
   // Latido barato cada medio segundo (tiempo actual y selección). El resumen completo solo cuando algo cambia, y la
   // comprobación de "desactualizada" cada pocos segundos, más espaciada cuanto más tarda en la escena actual.
   var lastTick = '', lastDeep = 0, deepEvery = 4000, ticking = false, noComp = false;
+  // Cada petición lleva un número: una respuesta más vieja que la última pintada (de la composición o el área de trabajo
+  // anteriores) se descarta en lugar de devolver sus datos y avisos al panel.
+  var reqSeq = 0, paintedSeq = 0;
+  // Lo que pinta una acción también cuenta como lo más reciente.
+  function paint(d) { paintedSeq = ++reqSeq; render(d); }
   async function refresh(loud, deep) {
     if (!env || (busy && !simulating && !loud)) return;
-    var t0 = Date.now();
+    var t0 = Date.now(), mySeq = ++reqSeq;
     try {
       var first = !summary, d = await call('inspect', { deep: !!deep });
       if (deep) { lastDeep = Date.now(); deepEvery = Math.min(20000, Math.max(4000, (Date.now() - t0) * 25)); }
+      if (mySeq < paintedSeq) return;
+      paintedSeq = mySeq;
       render(d);
       // Solo se sustituye el mensaje al empezar, al pedirlo o si el anterior era «abre una composición».
       if (loud || first || noComp) status(!(d.dynamic + d.fixed + d.emitters) ? 'Selecciona capas y pulsa Dinámico o Fijo.' : d.sim && d.sim.stale ? 'La escena cambió desde la última simulación: pulsa Simular para actualizarla.' : d.sim ? 'Simulación al día.' : 'Listo para simular.');
       noComp = false;
     } catch (e) {
+      if (mySeq < paintedSeq) return;
+      paintedSeq = mySeq;
       noComp = /composici/.test(e.message);
       if (loud || summary || !$('status').className) status(e.message, noComp ? '' : 'error');
       summary = null; $('compChip').hidden = true; meter.set({ frames: 0 });

@@ -1,0 +1,74 @@
+{
+ "family": "duplicados",
+ "seed": 443,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "identidad independiente",
+   "expected": "el original no cambia por tener copias (antes de tocarse, fotograma 35)",
+   "observed": "trayectoria distinta",
+   "frame": 28
+  }
+ ],
+ "scene": {
+  "fps": 12,
+  "frames": 88,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 1937.1965361759067,
+   "floor": true,
+   "quality": 120
+  },
+  "bodies": [
+   {
+    "id": "orig",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 150,
+     "a": 302.42263628169894
+    },
+    "shape": {
+     "kind": "box",
+     "w": 89.04824562603608,
+     "h": 97.41459931073358
+    },
+    "material": {
+     "restitution": 0.39733206876553595
+    }
+   },
+   {
+    "id": "copia1",
+    "type": "dynamic",
+    "pose": {
+     "x": 550.5080500446419,
+     "y": 150,
+     "a": 302.42263628169894
+    },
+    "shape": {
+     "kind": "box",
+     "w": 89.04824562603608,
+     "h": 97.41459931073358
+    },
+    "material": {
+     "restitution": 0.39733206876553595
+    }
+   },
+   {
+    "id": "obst",
+    "type": "static",
+    "pose": {
+     "x": 550.5080500446419,
+     "y": 600,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 106.8578947512433,
+     "h": 20
+    }
+   }
+  ]
+ }
+}

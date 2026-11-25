@@ -58,3 +58,40 @@ test('B3 · un anillo fino que se mueve no se vuelve «bala» (las balas no choc
   const r = Sim.run(sc);
   for (let k = 0; k < 40; k++) { const c = L.frameOf(r.bodies.ring, k), b = L.frameOf(r.bodies.b, k); assert.ok(Math.hypot(b[0] - c[0], b[1] - c[1]) < 200, 'la bola sale del anillo en ' + k); }
 });
+
+// B4: Box2D dormía los cuerpos lentos (< 0,5 px/s durante 0,5 s): una deriva lenta o una gravedad mínima se detenían.
+test('B4 · deriva lenta de 0,3 px/s en el espacio no se detiene', () => {
+  const r = Sim.run(scene({ fps: 25, frames: 101, world: { gravity: 0 }, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 100, y: 100 }, velocity: { x: 0.3, y: 0 }, shape: { kind: 'box', w: 20, h: 20 } }] }));
+  assert.ok(Math.abs(last(r.bodies.a)[0] - 101.2) < 0.05, 'recorre ' + (last(r.bodies.a)[0] - 100).toFixed(3) + ' px de 1,2');
+});
+test('B4 · gravedad de 1 px/s² hace caer ½·g·t²', () => {
+  const r = Sim.run(scene({ fps: 25, frames: 76, world: { gravity: 1 }, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 0, y: 0 }, shape: { kind: 'box', w: 20, h: 20 } }] }));
+  assert.ok(Math.abs(last(r.bodies.a)[1] - 4.5) < 0.1, 'cae ' + last(r.bodies.a)[1]);
+});
+test('B4 · los cuerpos en reposo siguen durmiéndose (las claves se recortan)', () => {
+  const r = Sim.run(scene({ fps: 25, frames: 150, world: { gravity: 980, floor: true }, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 500, y: 900 }, shape: { kind: 'box', w: 100, h: 100 }, material: { restitution: 0 } }] }));
+  const d = r.bodies.a.data, n = d.length / 3; let still = 0;
+  for (let k = n - 1; k > 0 && d[k * 3] === d[k * 3 - 3] && d[k * 3 + 1] === d[k * 3 - 2] && d[k * 3 + 2] === d[k * 3 - 1]; k--) still++;
+  assert.ok(still > 80, 'fotogramas idénticos al final: ' + still);
+});
+
+// B5: cuerpos que empiezan muy solapados salían despedidos (hasta 14000 px/s) y más cuanto mayor la calidad.
+for (const quality of [240, 960]) {
+  test('B5 · dos cajas solapadas al 90 % a ' + quality + ' Hz se separan sin salir despedidas', () => {
+    const sc = scene({ fps: 25, frames: 75, world: { gravity: 0, quality }, bodies: [0, 1].map((i) => ({ id: 'o' + i, type: 'dynamic', pose: { x: 960 + i * 10, y: 540, a: 0 }, shape: { kind: 'box', w: 100, h: 100 } })) });
+    const r = Sim.run(sc);
+    let worst = 0; for (const id of ['o0', 'o1']) { const d = r.bodies[id].data; for (let k = 1; k < d.length / 3; k++) worst = Math.max(worst, Math.hypot(d[k * 3] - d[k * 3 - 3], d[k * 3 + 1] - d[k * 3 - 2]) * 25); }
+    assert.ok(worst < 1000, 'velocidad máxima ' + worst.toFixed(0) + ' px/s');
+    const a = last(r.bodies.o0), b = last(r.bodies.o1);
+    assert.ok(Math.abs(b[0] - a[0]) > 98, 'acaban separadas: ' + Math.abs(b[0] - a[0]).toFixed(1) + ' px');
+  });
+}
+// B6: el límite de relación de masas se medía con la gravedad terrestre; con más gravedad las pilas se hundían.
+test('B6 · pila con densidades 0,01–9,9 y gravedad 2500 px/s²: sin penetraciones visibles', () => {
+  const bodies = []; let y = 1080;
+  for (let i = 0; i < 11; i++) { y -= 20; bodies.push({ id: 's' + i, type: 'dynamic', pose: { x: 960, y: y - 0.5, a: 0 }, shape: { kind: 'box', w: 160, h: 40 }, material: { density: i % 2 ? 9.86 : 0.01, friction: 0.8, restitution: 0 } }); y -= 20.5; }
+  const sc = scene({ fps: 23.976, frames: 120, world: { gravity: 2492, floor: true, sides: true, quality: 240 }, bodies });
+  const r = Sim.run(sc);
+  assert.ok(worstPenetration(sc, r) <= 2, 'penetración ' + worstPenetration(sc, r).toFixed(2) + ' px');
+  assert.ok(r.warnings.some((w) => w.code === 'masa-limitada' && w.limit < 1000), 'avisa del límite reducido');
+});

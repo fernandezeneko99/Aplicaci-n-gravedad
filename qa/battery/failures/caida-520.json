@@ -1,0 +1,41 @@
+{
+ "family": "caida",
+ "seed": 520,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "caída libre",
+   "expected": "(959.24, 539.87) ±0.60",
+   "observed": "(959.876, 539.979)",
+   "frame": 62
+  }
+ ],
+ "scene": {
+  "fps": 50,
+  "frames": 125,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 1,
+   "gravityAngle": 99.70204437151551,
+   "quality": 480
+  },
+  "bodies": [
+   {
+    "id": "a",
+    "type": "dynamic",
+    "spawn": 0,
+    "pose": {
+     "x": 960,
+     "y": 540,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 20,
+     "h": 20
+    }
+   }
+  ]
+ }
+}

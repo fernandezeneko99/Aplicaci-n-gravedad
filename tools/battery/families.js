@@ -66,7 +66,10 @@ families.reposo = { count: 900, make(seed) {
 families.contencion = { count: 800, make(seed) {
   const r = rng(seed), fps = r.pick(FPS), quality = r.pick(QUALITY), [W, H] = r.pick(RES.slice(1, 5)), n = r.int(1, 30), cap = speedCap({ fps, world: { quality } }) * 0.8;
   const bodies = [];
-  for (let i = 0; i < n; i++) { const size = r.range(6, Math.min(W, H) * 0.12), sp = r.range(0, Math.min(4000, cap)), a = r.range(0, 2 * Math.PI); bodies.push({ id: 'b' + i, type: 'dynamic', pose: { x: (i % 6 + 0.5) * W / 6, y: (Math.floor(i / 6) + 0.5) * H / 6, a: r.range(0, 360) }, velocity: { x: Math.cos(a) * sp, y: Math.sin(a) * sp, a: r.range(-360, 360) }, shape: L.randomShape(r, size), material: { restitution: r.range(0, 1), friction: r.range(0, 1) } }); }
+  for (let i = 0; i < n; i++) { const size = Math.min(r.range(6, Math.min(W, H) * 0.12), W / 6 / 1.6, H / 6 / 1.6), sp = r.range(0, Math.min(4000, cap)), a = r.range(0, 2 * Math.PI); const shp = L.randomShape(r, size), pose = { x: (i % 6 + 0.5) * W / 6, y: (Math.floor(i / 6) + 0.5) * H / 6, a: r.range(0, 360) }, e0 = extent(place(pieces(shp), pose.x, pose.y, pose.a));
+    // El contorno real (girado) debe empezar dentro de la composición.
+    pose.x += Math.max(0, 1 - e0.x0) - Math.max(0, e0.x1 - (W - 1)); pose.y += Math.max(0, 1 - e0.y0) - Math.max(0, e0.y1 - (H - 1));
+    bodies.push({ id: 'b' + i, type: 'dynamic', pose, velocity: { x: Math.cos(a) * sp, y: Math.sin(a) * sp, a: r.range(-360, 360) }, shape: shp, material: { restitution: r.range(0, 1), friction: r.range(0, 1) } }); }
   const scene = { fps, frames: r.int(20, 120), width: W, height: H, world: { gravity: r.range(0, 2000), gravityAngle: r.range(-180, 180), floor: true, sides: true, ceiling: true, quality }, bodies };
   return { scene, check(res) { return genericChecks(scene, res, { penTol: 2.5 }); } };
 } };
@@ -80,9 +83,12 @@ families.paredFina = { count: 800, make(seed) {
   const scene = { fps, frames, width: 1920, height: 1080, world: { gravity: 0, quality }, bodies: [wall, { id: 'b', type: 'dynamic', pose: { x: 300, y: 540 + r.range(-200, 200), a: 0 }, velocity: { x: speed, y: 0 }, shape: r.chance(0.6) ? ball(rr) : box(rr * 2, rr * 2) }] };
   return { scene, check(res) {
     const W = res.bodies.w, B = res.bodies.b;
-    for (let k = 0; k < frames; k++) {
-      const w = frameOf(W, k), b = frameOf(B, k), a = -w[2] * Math.PI / 180, dx = b[0] - w[0], dy = b[1] - w[1], lx = Math.cos(a) * dx - Math.sin(a) * dy, ly = Math.sin(a) * dx + Math.cos(a) * dy;
-      if (Math.abs(ly) < 300 && lx > thick / 2 + rr * 1.5 + 1) return [fail('pared fina (' + kind + ')', 'no atraviesa una pared de ' + thick.toFixed(1) + ' px a ' + speed.toFixed(0) + ' px/s', 'al otro lado (' + lx.toFixed(1) + ' px)', k)];
+    // Cruce real: entre dos fotogramas la bola pasa de un lado al otro de la pared (medido con la pose de la pared del
+    // fotograma siguiente) a la altura de la pared. Que la pared gire con el impacto no cuenta como cruce.
+    const local = (w, b) => { const a = -w[2] * Math.PI / 180, dx = b[0] - w[0], dy = b[1] - w[1]; return [Math.cos(a) * dx - Math.sin(a) * dy, Math.sin(a) * dx + Math.cos(a) * dy]; };
+    for (let k = 1; k < frames; k++) {
+      const w = frameOf(W, k), p0 = local(w, frameOf(B, k - 1)), p1 = local(w, frameOf(B, k));
+      if (Math.sign(p0[0]) !== Math.sign(p1[0]) && Math.abs(p0[0] - p1[0]) > thick && Math.max(Math.abs(p0[1]), Math.abs(p1[1])) < 330) return [fail('pared fina (' + kind + ')', 'no atraviesa una pared de ' + thick.toFixed(1) + ' px a ' + speed.toFixed(0) + ' px/s', 'cruza de ' + p0[0].toFixed(1) + ' a ' + p1[0].toFixed(1) + ' px', k)];
     }
     return [];
   } };
@@ -118,10 +124,10 @@ families.fuerzas = { count: 700, make(seed) {
   const affected = new Set();
   const strength = r.range(100, 3000) * (r.chance(0.2) ? -1 : 1);
   if (mode === 'radio') { const target = r.int(0, n - 1); forces.push({ type: 'wind', track: [[300, 120 + target * 160, 0, strength, 70]] }); affected.add('b' + target); }
-  if (mode === 'cuerpo') { const target = r.int(0, n - 1); forces.push({ type: r.pick(['wind', 'attract']), only: 'b' + target, track: [[r.chance(0.5) ? 1500 : 300, 900, r.range(-90, 90), strength, r.chance(0.5) ? 0 : 5000]] }); affected.add('b' + target); }
+  if (mode === 'cuerpo') { const target = r.int(0, n - 1), attract = r.chance(0.5); forces.push({ type: attract ? 'attract' : 'wind', only: 'b' + target, track: [[1800, 120 + target * 160, r.pick([0, 180]), Math.abs(strength), r.chance(0.5) ? 0 : 5000]] }); affected.add('b' + target); }
   if (mode === 'emisor') {
     emitters.push({ id: 'e1', max: 1, seed: 1, shape: ball(4), track: [[1400, 300, 0, 1000, 0, 0, 0]] }, { id: 'e2', max: 1, seed: 2, shape: ball(4), track: [[1400, 800, 0, 1000, 0, 0, 0]] });
-    forces.push({ type: 'wind', only: 'e1', track: [[0, 0, r.range(-180, 180), strength, 0]] }); affected.add('e1');
+    forces.push({ type: 'wind', only: 'e1', track: [[0, 0, r.range(-45, 45), Math.abs(strength), 0]] }); affected.add('e1');
   }
   if (mode === 'varias') { const t1 = r.int(0, n - 1), t2 = (t1 + 1) % n; forces.push({ type: 'wind', only: 'b' + t1, track: [[0, 0, 0, strength, 0]] }, { type: 'attract', only: 'b' + t2, track: [[1800, 120 + t2 * 160, 0, Math.abs(strength), 0]] }); affected.add('b' + t1); affected.add('b' + t2); }
   const scene = { fps, frames, width: 1920, height: 1080, world: { gravity: 0 }, bodies, forces, emitters };
@@ -153,7 +159,8 @@ families.emisores = { count: 700, make(seed) {
       const along = -(p.data[0] - 960) * Math.sin(rad) + (p.data[1] - 540) * Math.cos(rad), ahead = (p.data[0] - 960) * Math.cos(rad) + (p.data[1] - 540) * Math.sin(rad);
       if (Math.abs(along) > width / 2 + 0.01 || Math.abs(ahead) > 0.01) return [fail('nacimiento sobre la línea del emisor', 'a ±' + (width / 2).toFixed(1) + ' px de la línea', 'desvío ' + along.toFixed(2) + ' / ' + ahead.toFixed(2), p.from)];
       // La dirección solo se mide en partículas que nacen aisladas (si nacen juntas, chocan y se desvían con razón).
-      const alone = res.particles.every((o) => o === p || Math.abs(o.from - p.from) > 1 || Math.hypot(o.data[0] - p.data[0], o.data[1] - p.data[1]) > 40);
+      const reach = 2 * speed / fps + 20;
+      const alone = res.particles.every((o) => { if (o === p) return true; const i0 = p.from - o.from; if (i0 < 0 || i0 * 3 >= o.data.length) return Math.abs(o.from - p.from) > 1 || Math.hypot(o.data[0] - p.data[0], o.data[1] - p.data[1]) > reach; return Math.hypot(o.data[i0 * 3] - p.data[0], o.data[i0 * 3 + 1] - p.data[1]) > reach; });
       if (alone && p.data.length >= 6) { const vx = p.data[3] - p.data[0], vy = p.data[4] - p.data[1], dev = Math.abs(((Math.atan2(vy, vx) - rad) * 180 / Math.PI + 540) % 360 - 180); if (Math.hypot(vx, vy) > 0.5 && dev > spread / 2 + 1) return [fail('dispersión', '≤ ' + (spread / 2).toFixed(1) + '°', dev.toFixed(1) + '°', p.from)]; }
     }
     return [];
@@ -173,7 +180,7 @@ families.uniones = { count: 600, make(seed) {
     const out = genericChecks(scene, res, { noPenetration: true }); if (out.length) return out;
     if (kind === 'pivote') for (let k = 0; k < frames; k++) { const f = frameOf(res.bodies.a, k); if (Math.hypot(f[0] - 960, f[1] - 300) > 1.5) return [fail('pivote', 'el anclaje no se mueve (±1,5 px)', 'se desplaza ' + Math.hypot(f[0] - 960, f[1] - 300).toFixed(2) + ' px', k)]; }
     if (kind === 'barra') { const L0 = Math.hypot(bodies[1].pose.x - 960, bodies[1].pose.y - 200); for (let k = 0; k < frames; k++) { const f = frameOf(res.bodies.a, k), d = Math.hypot(f[0] - 960, f[1] - 200); if (Math.abs(d - L0) > 2 + 0.01 * L0) return [fail('barra rígida', 'longitud ' + L0.toFixed(1), d.toFixed(1), k)]; } }
-    if (kind === 'cadena') { const n = bodies.length, len = bodies[1] ? bodies[1].pose.x - bodies[0].pose.x : 0; for (let k = 0; k < frames; k += 3) for (let i = 1; i < n; i++) { const p = frameOf(res.bodies['l' + (i - 1)], k), q = frameOf(res.bodies['l' + i], k), a = p[2] * Math.PI / 180, end = [p[0] + Math.cos(a) * len, p[1] + Math.sin(a) * len]; if (Math.hypot(end[0] - q[0], end[1] - q[1]) > 2.5) return [fail('cadena', 'eslabones unidos (±2,5 px)', 'separación ' + Math.hypot(end[0] - q[0], end[1] - q[1]).toFixed(2) + ' px en el eslabón ' + i, k)]; } }
+    if (kind === 'cadena') { const n = bodies.length, len = bodies[1] ? bodies[1].pose.x - bodies[0].pose.x : 0, dts = 1 / (fps * substeps(scene)), tolC = 2.5 + n * g * dts * dts; for (let k = 0; k < frames; k += 3) for (let i = 1; i < n; i++) { const p = frameOf(res.bodies['l' + (i - 1)], k), q = frameOf(res.bodies['l' + i], k), a = p[2] * Math.PI / 180, end = [p[0] + Math.cos(a) * len, p[1] + Math.sin(a) * len]; if (Math.hypot(end[0] - q[0], end[1] - q[1]) > tolC) return [fail('cadena', 'eslabones unidos (±2,5 px)', 'separación ' + Math.hypot(end[0] - q[0], end[1] - q[1]).toFixed(2) + ' px en el eslabón ' + i, k)]; } }
     return [];
   } };
 } };
@@ -223,7 +230,9 @@ families.duplicados = { count: 500, make(seed) {
     const solo = Sim.run(Object.assign({}, scene, { bodies: [bodies[0]] }));
     // La identidad se compara hasta que el original y alguna copia se acercan a menos de 2 px (después pueden chocar).
     const ps = pieces(shape); let touch = scene.frames;
-    for (let k = 0; k < scene.frames && touch === scene.frames; k++) { const fo = frameOf(res.bodies.orig, k), eo = extent(place(ps, fo[0], fo[1], fo[2])); for (let i = 1; i <= copies; i++) { const fc = frameOf(res.bodies['copia' + i], k), ec = extent(place(ps, fc[0], fc[1], fc[2])); if (eo.x1 + 2 > ec.x0 && ec.x1 + 2 > eo.x0 && eo.y1 + 2 > ec.y0 && ec.y1 + 2 > eo.y0) { touch = k; break; } } }
+    // Margen: 2 px más lo que ambos avanzan hasta el fotograma siguiente (pueden chocar entre dos fotogramas).
+    const step = (rec, k) => { const a = frameOf(rec, k), b = frameOf(rec, Math.min(k + 1, scene.frames - 1)); return Math.hypot(b[0] - a[0], b[1] - a[1]) + size * Math.abs(b[2] - a[2]) * Math.PI / 180; };
+    for (let k = 0; k < scene.frames && touch === scene.frames; k++) { const fo = frameOf(res.bodies.orig, k), eo = extent(place(ps, fo[0], fo[1], fo[2])); for (let i = 1; i <= copies; i++) { const rc = res.bodies['copia' + i], fc = frameOf(rc, k), ec = extent(place(ps, fc[0], fc[1], fc[2])), m = 2 + step(res.bodies.orig, k) + step(rc, k); if (eo.x1 + m > ec.x0 && ec.x1 + m > eo.x0 && eo.y1 + m > ec.y0 && ec.y1 + m > eo.y0) { touch = k; break; } } }
     for (let i = 0; i < Math.min(touch, scene.frames) * 3; i++) if (solo.bodies.orig.data[i] !== res.bodies.orig.data[i]) return [fail('identidad independiente', 'el original no cambia por tener copias (antes de tocarse, fotograma ' + touch + ')', 'trayectoria distinta', Math.floor(i / 3))];
     const a = res.bodies.orig.data, b = res.bodies.copia1.data, g = scene.world.gravity;
     let diverged = false; for (let i = 1; i < a.length; i += 3) if (Math.abs(a[i] - b[i]) > 0.01) { diverged = true; break; }

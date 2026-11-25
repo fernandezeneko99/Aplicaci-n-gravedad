@@ -1,0 +1,92 @@
+{
+ "family": "superpuestos",
+ "seed": 387,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6568 px/s",
+   "frame": 1
+  }
+ ],
+ "scene": {
+  "fps": 59.94,
+  "frames": 180,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 1708.2128352485597,
+   "floor": true,
+   "sides": true,
+   "quality": 960
+  },
+  "bodies": [
+   {
+    "id": "o0",
+    "type": "dynamic",
+    "pose": {
+     "x": 960,
+     "y": 498.77341461228207,
+     "a": 27.25808240706101
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 56.573308343067765
+    }
+   },
+   {
+    "id": "o1",
+    "type": "dynamic",
+    "pose": {
+     "x": 974.014170084998,
+     "y": 498.9865604280494,
+     "a": 14.035738895181566
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 56.573308343067765
+    }
+   },
+   {
+    "id": "o2",
+    "type": "dynamic",
+    "pose": {
+     "x": 988.028340169996,
+     "y": 502.1936475667171,
+     "a": 17.369425466749817
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 56.573308343067765
+    }
+   },
+   {
+    "id": "o3",
+    "type": "dynamic",
+    "pose": {
+     "x": 1002.0425102549941,
+     "y": 497.2778155654669,
+     "a": 6.616632132790983
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 56.573308343067765
+    }
+   },
+   {
+    "id": "o4",
+    "type": "dynamic",
+    "pose": {
+     "x": 1016.0566803399921,
+     "y": 501.0494884666987,
+     "a": 23.798861287068576
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 56.573308343067765
+    }
+   }
+  ]
+ }
+}

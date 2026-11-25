@@ -1,0 +1,164 @@
+{
+ "family": "fuerzas",
+ "seed": 57,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "fuerza acotada (emisor)",
+   "expected": "b2 quieto",
+   "observed": "se movió 75.225 px",
+   "frame": 46
+  }
+ ],
+ "scene": {
+  "fps": 30,
+  "frames": 47,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 0
+  },
+  "bodies": [
+   {
+    "id": "b0",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 120,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b1",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 280,
+     "a": 0
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 20
+    }
+   },
+   {
+    "id": "b2",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 440,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b3",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 600,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b4",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 760,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   },
+   {
+    "id": "b5",
+    "type": "dynamic",
+    "pose": {
+     "x": 300,
+     "y": 920,
+     "a": 0
+    },
+    "shape": {
+     "kind": "box",
+     "w": 36,
+     "h": 36
+    }
+   }
+  ],
+  "forces": [
+   {
+    "type": "wind",
+    "only": "e1",
+    "track": [
+     [
+      0,
+      0,
+      172.81387480907142,
+      2786.751284636557,
+      0
+     ]
+    ]
+   }
+  ],
+  "emitters": [
+   {
+    "id": "e1",
+    "max": 1,
+    "seed": 1,
+    "shape": {
+     "kind": "circle",
+     "r": 4
+    },
+    "track": [
+     [
+      1400,
+      300,
+      0,
+      1000,
+      0,
+      0,
+      0
+     ]
+    ]
+   },
+   {
+    "id": "e2",
+    "max": 1,
+    "seed": 2,
+    "shape": {
+     "kind": "circle",
+     "r": 4
+    },
+    "track": [
+     [
+      1400,
+      800,
+      0,
+      1000,
+      0,
+      0,
+      0
+     ]
+    ]
+   }
+  ]
+ }
+}

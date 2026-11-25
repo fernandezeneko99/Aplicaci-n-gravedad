@@ -1,0 +1,68 @@
+{
+ "family": "superpuestos",
+ "seed": 90,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "separación sin explosión",
+   "expected": "velocidad < 6000 px/s",
+   "observed": "o0 a 6772 px/s",
+   "frame": 1
+  }
+ ],
+ "scene": {
+  "fps": 120,
+  "frames": 360,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 1561.6628671996295,
+   "floor": true,
+   "sides": true,
+   "quality": 480
+  },
+  "bodies": [
+   {
+    "id": "o0",
+    "type": "dynamic",
+    "pose": {
+     "x": 960,
+     "y": 501.7562112491578,
+     "a": 28.833208379801363
+    },
+    "shape": {
+     "kind": "box",
+     "w": 122.8170240810141,
+     "h": 122.8170240810141
+    }
+   },
+   {
+    "id": "o1",
+    "type": "dynamic",
+    "pose": {
+     "x": 1003.0011640637929,
+     "y": 497.52880298765376,
+     "a": 1.7643509712070227
+    },
+    "shape": {
+     "kind": "box",
+     "w": 122.8170240810141,
+     "h": 122.8170240810141
+    }
+   },
+   {
+    "id": "o2",
+    "type": "dynamic",
+    "pose": {
+     "x": 1046.0023281275858,
+     "y": 500.73597600869834,
+     "a": 6.907497933134437
+    },
+    "shape": {
+     "kind": "circle",
+     "r": 61.40851204050705
+    }
+   }
+  ]
+ }
+}

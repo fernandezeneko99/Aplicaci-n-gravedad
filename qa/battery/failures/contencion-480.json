@@ -1,0 +1,52 @@
+{
+ "family": "contencion",
+ "seed": 480,
+ "engine": "3cfed85fee26ea5d",
+ "fails": [
+  {
+   "check": "contención",
+   "expected": "dentro de la composición (±2 px)",
+   "observed": "b0 sale 12.41 px",
+   "frame": 0
+  }
+ ],
+ "scene": {
+  "fps": 59.94,
+  "frames": 49,
+  "width": 1920,
+  "height": 1080,
+  "world": {
+   "gravity": 688.5177018120885,
+   "gravityAngle": -23.659456176683307,
+   "floor": true,
+   "sides": true,
+   "ceiling": true,
+   "quality": 240
+  },
+  "bodies": [
+   {
+    "id": "b0",
+    "type": "dynamic",
+    "pose": {
+     "x": 160,
+     "y": 90,
+     "a": 152.60889521799982
+    },
+    "velocity": {
+     "x": -230.51121207345312,
+     "y": -2653.056365035381,
+     "a": 336.79494615644217
+    },
+    "shape": {
+     "kind": "box",
+     "w": 126.57785928798839,
+     "h": 165.10161142468755
+    },
+    "material": {
+     "restitution": 0.852975377580151,
+     "friction": 0.5872982307337224
+    }
+   }
+  ]
+ }
+}

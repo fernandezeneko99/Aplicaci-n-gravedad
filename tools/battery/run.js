@@ -7,6 +7,7 @@
  *   node tools/battery/run.js --pilot             lote piloto: 10 escenas por familia, sin guardar progreso
  *   node tools/battery/run.js --family F --seed N repite un caso y muestra su detalle
  *   node tools/battery/run.js --reset             borra el progreso guardado
+ *   node tools/battery/run.js --summary [archivo] resume el progreso guardado (sin ejecutar)
  *   node tools/battery/run.js --workers 4         número de procesos (por defecto, núcleos)
  *
  * Progreso en qa/battery/state/ (reanudable; se reinicia solo si cambia el motor). Resumen en qa/battery/summary.json
@@ -158,6 +159,7 @@ function summarize(st, pilot) {
 (async () => {
   if (opt('reset')) { fs.rmSync(STATE, { recursive: true, force: true }); fs.rmSync(FAIL, { recursive: true, force: true }); console.log('Progreso borrado.'); return; }
   if (opt('family') && opt('seed') !== null) return single(opt('family'), +opt('seed'));
+  if (opt('summary')) { const st = JSON.parse(fs.readFileSync(path.join(STATE, 'progress.json'), 'utf8')), s = summarize(st, true); if (opt('summary') !== true) fs.writeFileSync(path.join(OUT, opt('summary')), JSON.stringify(s, null, 1)); return; }
   const s = await battery(!!opt('pilot'));
   process.exitCode = s.escenasConFallo || s.determinismoFallido ? 1 : 0;
 })();

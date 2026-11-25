@@ -19,6 +19,10 @@
   // (hasta 100000 px/s y 100000°/s) ese límite frenaba los cuerpos en silencio: se amplía para cubrir esos rangos.
   planck.Settings.maxTranslation = 40;
   planck.Settings.maxRotation = 12 * Math.PI;
+  // Box2D duerme un cuerpo que va a menos de 0,5 px/s (y 2°/s) durante medio segundo: una deriva lenta en el espacio o una
+  // gravedad mínima se detenían solas. Umbrales imperceptibles: 0,1 px/s y 0,4°/s.
+  planck.Settings.linearSleepTolerance = 0.1 / PPM;
+  planck.Settings.angularSleepTolerance = 0.4 * Math.PI / 180;
   var SKIN = 0.01 * PPM;   // polygonRadius de Box2D (0,01 m) en píxeles
 
   // ---------- Geometría ----------
@@ -300,14 +304,19 @@
   }
 
   // Densidades de los cuerpos que se mueven (dinámicos y partículas): calidad mínima y límite de relación.
-  var MAX_RATIO = 1000;
+  var MAX_RATIO = 1000, STEPS = [120, 240, 480, 960];
   function massPlan(scene) {
     var ds = [];
     (scene.bodies || []).forEach(function (b) { if (b.type === 'dynamic') ds.push(density(b.material)); });
     (scene.emitters || []).forEach(function (e) { if (!e.max) return; (e.materials || [e.material]).forEach(function (m) { ds.push(density(m)); }); });
-    var max = ds.length ? Math.max.apply(null, ds) : 1, min = ds.length ? Math.min.apply(null, ds) : 1, raw = max / min, floor = max / MAX_RATIO, ratio = Math.min(raw, MAX_RATIO);
-    var hz = ratio <= 10 ? 0 : ratio <= 40 ? 120 : ratio <= 200 ? 240 : 960;
-    return { ratio: ratio, raw: raw, hz: hz, clamped: raw > MAX_RATIO * 1.0001, material: function (m) { m = m || {}; var d = density(m); if (d >= floor) return m; var c = {}; for (var k in m) c[k] = m[k]; c.density = floor; return c; } };
+    // Límite de relación: 1000:1 con la gravedad terrestre y proporcionalmente menos con más gravedad (medido en pilas).
+    var g = Math.abs((scene.world && scene.world.gravity !== undefined) ? scene.world.gravity : 980), limit = Math.max(50, MAX_RATIO * Math.min(1, 980 / Math.max(1, g)));
+    var max = ds.length ? Math.max.apply(null, ds) : 1, min = ds.length ? Math.min.apply(null, ds) : 1, raw = max / min, floor = max / limit, ratio = Math.min(raw, limit);
+    var base = ratio <= 10 ? 0 : ratio <= 40 ? 120 : ratio <= 200 ? 240 : 960;
+    // Umbrales medidos con la gravedad terrestre: la penetración crece con g·dt², así que con más gravedad hacen falta más pasos.
+    var need = base * Math.max(1, Math.sqrt(g / 980)), hz = 0;
+    if (base) { hz = 960; for (var q = 0; q < STEPS.length; q++) if (STEPS[q] >= need) { hz = STEPS[q]; break; } }
+    return { ratio: ratio, raw: raw, hz: hz, clamped: raw > limit * 1.0001, limit: limit, material: function (m) { m = m || {}; var d = density(m); if (d >= floor) return m; var c = {}; for (var k in m) c[k] = m[k]; c.density = floor; return c; } };
   }
   function thinWallHz(scene, pending) {
     var thin = Infinity, speed = 0;
@@ -351,8 +360,11 @@
     // puede apretar un cuerpo a través de la pared en un choque múltiple. Cada subpaso debe avanzar menos de medio grosor.
     var walls = thinWallHz(scene, pending);
     if (!fixedQuality && walls.hz > hz) { warnings.push({ id: null, code: 'calidad-paredes', hz: walls.hz, from: hz, thickness: walls.thickness, speed: walls.speed }); hz = walls.hz; }
-    if (masses.clamped) warnings.push({ id: null, code: 'masa-limitada', ratio: masses.raw });
+    if (masses.clamped) warnings.push({ id: null, code: 'masa-limitada', ratio: masses.raw, limit: masses.limit });
     var sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
+    // Cuerpos que empiezan solapados: Box2D los separa hasta 0,2 m por subpaso, así que a más calidad más violento era el
+    // «salto» (hasta 14000 px/s medidos). Se limita la corrección a 800 px/s, sea cual sea la calidad. Pilas: sin cambios.
+    planck.Settings.maxLinearCorrection = Math.min(0.2, 800 / PPM * dt);
     var g = (w.gravity === undefined ? 980 : w.gravity) / PPM, ga = rad(w.gravityAngle || 0);
     var world = new planck.World({ gravity: Vec2(-Math.sin(ga) * g, Math.cos(ga) * g) });
     var drag = Math.max(0, w.airDrag || 0), out = { frames: frames, fps: fps, bodies: {}, particles: [], contacts: {}, warnings: warnings };
