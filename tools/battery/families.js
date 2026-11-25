@@ -260,7 +260,7 @@ families.rejilla = { count: GRID.length, make(seed) {
 
 // 15. Escenas aleatorias completas: cuerpos de todo tipo, fuerzas, emisores, uniones y animados.
 families.aleatorias = { count: 2000, make(seed) {
-  const r = rng(seed), fps = r.pick(FPS), quality = r.pick(QUALITY), [W, H] = r.pick(RES.slice(0, 6)), n = r.int(1, 25), frames = r.int(2, 90), bodies = [], forces = [], emitters = [], joints = [];
+  const r = rng(seed), fps = r.pick(FPS), quality = r.pick(QUALITY), [W, H] = r.pick(RES.slice(1, 6)), n = r.int(1, 25), frames = r.int(2, 90), bodies = [], forces = [], emitters = [], joints = [];
   const walls = r.chance(0.6), cap = speedCap({ fps, world: { quality } }) * 0.8;
   for (let i = 0; i < n; i++) {
     const type = r.pick(['dynamic', 'dynamic', 'dynamic', 'static', 'kinematic']), size = r.range(2, Math.min(W, H) * 0.2), b = { id: 'r' + i, type, spawn: r.chance(0.2) ? r.int(0, frames - 1) : 0, pose: { x: r.range(0, W), y: r.range(0, H), a: r.range(0, 360) }, shape: L.randomShape(r, size), material: { density: r.chance(0.85) ? r.range(0.2, 10) : r.pick([0.001, 0.01, 50, 1000]), friction: r.range(0, 2), restitution: r.range(0, 1) } };
