@@ -264,6 +264,13 @@
   }
 
   // Grosor mínimo de una forma (px): lo que un cuerpo puede avanzar por subpaso sin riesgo de atravesar a otro.
+  // Extensión máxima (px): un cuerpo es «compacto» si no es mucho más largo que grueso.
+  function span(built) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (built.circle) { x0 = built.circle.x - built.circle.r; x1 = built.circle.x + built.circle.r; y0 = built.circle.y - built.circle.r; y1 = built.circle.y + built.circle.r; }
+    for (var i = 0; i < built.pieces.length; i++) for (var k = 0; k < built.pieces[i].length; k++) { var v = built.pieces[i][k]; x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]); y0 = Math.min(y0, v[1]); y1 = Math.max(y1, v[1]); }
+    return isFinite(x0) ? Math.max(x1 - x0, y1 - y0) : 1;
+  }
   function thickness(built) {
     var t = Infinity;
     if (built.circle) t = built.circle.r * 2;
@@ -302,6 +309,19 @@
     var hz = ratio <= 10 ? 0 : ratio <= 40 ? 120 : ratio <= 200 ? 240 : 960;
     return { ratio: ratio, raw: raw, hz: hz, clamped: raw > MAX_RATIO * 1.0001, material: function (m) { m = m || {}; var d = density(m); if (d >= floor) return m; var c = {}; for (var k in m) c[k] = m[k]; c.density = floor; return c; } };
   }
+  function thinWallHz(scene, pending) {
+    var thin = Infinity, speed = 0;
+    for (var i = 0; i < pending.length; i++) {
+      var b = pending[i].def;
+      if (b.type !== 'dynamic') continue;
+      if (b.velocity) speed = Math.max(speed, Math.sqrt((b.velocity.x || 0) * (b.velocity.x || 0) + (b.velocity.y || 0) * (b.velocity.y || 0)));
+      var t = thickness(pending[i].built);
+      if (span(pending[i].built) > 3 * t) thin = Math.min(thin, t);
+    }
+    (scene.emitters || []).forEach(function (e) { if (!e.max || !e.track) return; e.track.forEach(function (f) { speed = Math.max(speed, Math.abs(f[4] || 0) * (1 + (e.speedVariation || 0))); }); });
+    if (!isFinite(thin) || speed <= 0) return { hz: 0 };
+    return { hz: Math.min(960, Math.ceil(2 * speed / thin)), thickness: thin, speed: speed };
+  }
   function density(m) { return Math.max(0.0001, m && m.density !== undefined ? m.density : 1); }
 
   // ---------- Utilidades ----------
@@ -320,8 +340,17 @@
     var w = scene.world || {}, warnings = [], hz = Math.max(60, Math.min(960, w.quality || 240));
     // Relación de masas: Box2D apila mal cuerpos de densidades muy distintas. Se sube la calidad lo justo (medido:
     // ≤1 px de penetración) y, por encima de 1000:1, que Box2D no resuelve, se limita la relación.
-    var masses = massPlan(scene);
-    if (masses.hz > hz) { warnings.push({ id: null, code: 'calidad-subida', hz: masses.hz, from: hz, ratio: masses.ratio }); hz = masses.hz; }
+    var pending = (scene.bodies || []).map(function (b) {
+      var built = buildPieces(b.shape);
+      if (built.warnings.length) warnings.push({ id: b.id, code: built.warnings[0] });
+      return { def: b, built: built, body: null, record: null };
+    });
+    var masses = massPlan(scene), fixedQuality = !!w.fixedQuality; // fixedQuality: solo para mediciones
+    if (!fixedQuality && masses.hz > hz) { warnings.push({ id: null, code: 'calidad-subida', hz: masses.hz, from: hz, ratio: masses.ratio }); hz = masses.hz; }
+    // Paredes dinámicas finas (anillos, tablas, vasos que se mueven) frente a cuerpos o partículas rápidos: el solucionador
+    // puede apretar un cuerpo a través de la pared en un choque múltiple. Cada subpaso debe avanzar menos de medio grosor.
+    var walls = thinWallHz(scene, pending);
+    if (!fixedQuality && walls.hz > hz) { warnings.push({ id: null, code: 'calidad-paredes', hz: walls.hz, from: hz, thickness: walls.thickness, speed: walls.speed }); hz = walls.hz; }
     if (masses.clamped) warnings.push({ id: null, code: 'masa-limitada', ratio: masses.raw });
     var sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
     var g = (w.gravity === undefined ? 980 : w.gravity) / PPM, ga = rad(w.gravityAngle || 0);
@@ -340,11 +369,6 @@
       boxes.forEach(function (b) { wall.createFixture(new planck.Box(b[2] / PPM, b[3] / PPM, Vec2(b[0] / PPM, b[1] / PPM), 0), { friction: w.wallFriction === undefined ? 0.5 : w.wallFriction, restitution: w.wallBounce || 0 }); });
     }
 
-    var pending = (scene.bodies || []).map(function (b) {
-      var built = buildPieces(b.shape);
-      if (built.warnings.length) warnings.push({ id: b.id, code: built.warnings[0] });
-      return { def: b, built: built, body: null, record: null };
-    });
     var live = [];
 
     function spawn(item, k) {
@@ -356,6 +380,7 @@
       if (type === 'dynamic' && b.velocity) { body.setLinearVelocity(Vec2((b.velocity.x || 0) / PPM, (b.velocity.y || 0) / PPM)); body.setAngularVelocity(rad(b.velocity.a || 0)); }
       body.setUserData(b.id);
       body.gravedadThin = thickness(item.built) / PPM;
+      body.gravedadCompact = span(item.built) <= 3 * thickness(item.built);
       item.body = body; item.record = { from: k, data: [] }; item.spawnFrame = k; byId[b.id] = item;
       out.bodies[b.id] = item.record;
       live.push(item);
@@ -384,6 +409,7 @@
           body.setLinearVelocity(Vec2(Math.cos(dir) * v / PPM, Math.sin(dir) * v / PPM));
           body.gravedadEmitter = e.id;
           body.gravedadThin = thickness(em.built[which]) * size / PPM;
+          body.gravedadCompact = span(em.built[which]) <= 3 * thickness(em.built[which]);
           if (e.spin) body.setAngularVelocity(rad((r() * 2 - 1) * e.spin));
           var rec = { emitter: e.id, template: which, index: em.count, from: k, to: null, scale: round(size, 4), data: [] };
           out.particles.push(rec);
@@ -461,11 +487,13 @@
 
     // Colisión continua solo donde hace falta: Box2D no la aplica entre cuerpos dinámicos salvo que sean «bala».
     // Un cuerpo que en un subpaso avanza más de la mitad de su grosor mínimo pasa a bala; al frenar deja de serlo.
+    // Solo los compactos: Box2D no calcula el choque continuo entre dos balas, así que un anillo o una tabla finos nunca
+    // lo son (las balas pequeñas que chocan con ellos sí tienen choque continuo).
     function guardTunneling() {
       for (var i = 0; i < live.length; i++) {
         var b = live[i].body;
         if (!b || b.getType() !== 'dynamic') continue;
-        var v = b.getLinearVelocity(), travel = Math.sqrt(v.x * v.x + v.y * v.y) * dt, fast = travel > 0.5 * (b.gravedadThin || 0.02);
+        var v = b.getLinearVelocity(), travel = Math.sqrt(v.x * v.x + v.y * v.y) * dt, fast = b.gravedadCompact !== false && travel > 0.5 * (b.gravedadThin || 0.02);
         if (fast !== b.isBullet()) b.setBullet(fast);
       }
     }

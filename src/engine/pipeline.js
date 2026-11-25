@@ -48,6 +48,7 @@
     var who = names[w.id] || 'Una capa';
     if (w.code === 'sin-forma') return who + ': su contorno es demasiado pequeño para colisionar; se ignora.';
     if (w.code === 'calidad-subida') return 'Densidades muy distintas (relación ' + Math.round(w.ratio) + ':1): la calidad sube de ' + w.from + ' a ' + w.hz + ' pasos/s para que no se atraviesen. Tarda algo más.';
+    if (w.code === 'calidad-paredes') return 'Paredes móviles finas (' + Math.round(w.thickness * 10) / 10 + ' px) y objetos rápidos (' + Math.round(w.speed) + ' px/s): la calidad sube de ' + w.from + ' a ' + w.hz + ' pasos/s para que no las atraviesen.';
     if (w.code === 'masa-limitada') return 'Relación de densidades de ' + Math.round(w.ratio) + ':1: por encima de 1000:1 la física no es estable; se simula como 1000:1.';
     if (w.code === 'union-sin-capa') return who + ': la capa a la que está unida no es un cuerpo; se ignora la unión.';
     if (w.code === 'union-sin-dinamico') return who + ': una unión necesita al menos un cuerpo dinámico.';

@@ -102,6 +102,8 @@ families.anillo = { count: 700, make(seed) {
     const ringRec = res.bodies.ring;
     for (const p of res.particles) for (let i = 0; i < p.data.length / 3; i++) {
       const k = p.from + i, c = frameOf(ringRec, k), d = Math.hypot(p.data[i * 3] - c[0], p.data[i * 3 + 1] - c[1]);
+      // Un anillo dinámico puede alejarse del emisor (cae): solo cuentan las partículas que nacieron dentro.
+      if (i === 0 && d > inner - pr) break;
       if (d > R + t / 2 + 1) return [fail('anillo cerrado', 'partículas a menos de ' + inner.toFixed(1) + ' px del centro', 'una a ' + d.toFixed(1) + ' px (fuera del anillo)', k)];
     }
     return [];
@@ -219,7 +221,10 @@ families.duplicados = { count: 500, make(seed) {
   return { scene, check(res) {
     const Sim = require('../../src/engine/sim.js');
     const solo = Sim.run(Object.assign({}, scene, { bodies: [bodies[0]] }));
-    if (JSON.stringify(solo.bodies.orig.data) !== JSON.stringify(res.bodies.orig.data)) return [fail('identidad independiente', 'el original no cambia por tener copias', 'trayectoria distinta', 0)];
+    // La identidad se compara hasta que el original y alguna copia se acercan a menos de 2 px (después pueden chocar).
+    const ps = pieces(shape); let touch = scene.frames;
+    for (let k = 0; k < scene.frames && touch === scene.frames; k++) { const fo = frameOf(res.bodies.orig, k), eo = extent(place(ps, fo[0], fo[1], fo[2])); for (let i = 1; i <= copies; i++) { const fc = frameOf(res.bodies['copia' + i], k), ec = extent(place(ps, fc[0], fc[1], fc[2])); if (eo.x1 + 2 > ec.x0 && ec.x1 + 2 > eo.x0 && eo.y1 + 2 > ec.y0 && ec.y1 + 2 > eo.y0) { touch = k; break; } } }
+    for (let i = 0; i < Math.min(touch, scene.frames) * 3; i++) if (solo.bodies.orig.data[i] !== res.bodies.orig.data[i]) return [fail('identidad independiente', 'el original no cambia por tener copias (antes de tocarse, fotograma ' + touch + ')', 'trayectoria distinta', Math.floor(i / 3))];
     const a = res.bodies.orig.data, b = res.bodies.copia1.data, g = scene.world.gravity;
     let diverged = false; for (let i = 1; i < a.length; i += 3) if (Math.abs(a[i] - b[i]) > 0.01) { diverged = true; break; }
     // Solo se exige si la copia llega al obstáculo dentro del tiempo simulado.
@@ -249,7 +254,7 @@ families.aleatorias = { count: 2000, make(seed) {
   const r = rng(seed), fps = r.pick(FPS), quality = r.pick(QUALITY), [W, H] = r.pick(RES.slice(0, 6)), n = r.int(1, 25), frames = r.int(2, 90), bodies = [], forces = [], emitters = [], joints = [];
   const walls = r.chance(0.6), cap = speedCap({ fps, world: { quality } }) * 0.8;
   for (let i = 0; i < n; i++) {
-    const type = r.pick(['dynamic', 'dynamic', 'dynamic', 'static', 'kinematic']), size = r.range(2, Math.min(W, H) * 0.2), b = { id: 'r' + i, type, spawn: r.chance(0.2) ? r.int(0, frames - 1) : 0, pose: { x: r.range(0, W), y: r.range(0, H), a: r.range(0, 360) }, shape: L.randomShape(r, size), material: { density: r.range(0.01, 50), friction: r.range(0, 2), restitution: r.range(0, 1) } };
+    const type = r.pick(['dynamic', 'dynamic', 'dynamic', 'static', 'kinematic']), size = r.range(2, Math.min(W, H) * 0.2), b = { id: 'r' + i, type, spawn: r.chance(0.2) ? r.int(0, frames - 1) : 0, pose: { x: r.range(0, W), y: r.range(0, H), a: r.range(0, 360) }, shape: L.randomShape(r, size), material: { density: r.chance(0.85) ? r.range(0.2, 10) : r.pick([0.001, 0.01, 50, 1000]), friction: r.range(0, 2), restitution: r.range(0, 1) } };
     if (r.chance(0.15)) b.despawn = r.int(b.spawn + 1, frames);
     if (type === 'dynamic' && r.chance(0.5)) { const v = r.range(0, Math.min(5000, cap)), a = r.range(0, 2 * Math.PI); b.velocity = { x: Math.cos(a) * v, y: Math.sin(a) * v, a: r.range(-1000, 1000) }; }
     if (type === 'kinematic') { b.track = []; for (let k = b.spawn; k < (b.despawn || frames); k++) b.track.push([b.pose.x + (k - b.spawn) * r.range(-5, 5), b.pose.y, b.pose.a + k]); }
