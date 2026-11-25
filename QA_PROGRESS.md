@@ -203,6 +203,24 @@ Determinismo: cada 10.ª escena se repite y se comparan las trayectorias byte a 
 `node tools/battery/recheck.js pase1/failures` con el código actual: las 102 pasan. Regresiones B1–B6 en
 `test/engine-limits.test.js` (16 pruebas: 8 fallan con el motor de la 1.2.x; 4 con el anterior a B4–B6).
 
+### Lote 2 (motor con B1–B6) — `qa/battery/pase2/failures/`
+
+10 800 escenas distintas · 0 discrepancias de determinismo · 29 escenas con fallo, todas `paredFina` con pared animada.
+
+| Grupo | Escenas | Causa | Resolución |
+|---|---|---|---|
+| Pared animada fina que empuja la bola | 29 | **Oráculo**: medía los dos fotogramas con la pose de la pared del segundo, así que una pared que empuja la bola «la adelantaba». Mínimo: pared de 3 px a 28 px/fot. contra una caja quieta; la caja va siempre por delante | Oráculo: cada fotograma con la pose de su pared. `paredFina` 800/800 (también una pared que tiembla hasta 115 px/fot.). Regresión «pared animada fina» ×2 en `engine-limits` |
+
+El lote se detuvo antes de las escenas de estrés (el oráculo corregido cambia la huella de la batería).
+
+### Lote 3 (motor con B1–B6 y oráculos corregidos) — `qa/battery/pase3/failures/`
+
+Detenido tras ~11 900 escenas al aparecer 2 fallos reales en `aleatorias` (semillas 1119 y 703):
+
+| # | Caso | Esperado | Observado | Causa | Corrección |
+|---|---|---|---|---|---|
+| **B7** | Cuerpo unido con pivote a una capa animada **y** al mundo (1119: 3 cuerpos, 2 uniones, 640×360); bola de radio 130 con pivote a un trazo animado, gravedad 4126 (703) | Ningún desplazamiento mayor que la composición en un fotograma | Saltos de 1 152 y 4 143 px/fot. en los casos reducidos (hasta 40 587 px/fot. en la escena completa); el cuerpo clavado al mundo se aleja 700 px y vuelve | Las dos uniones no se pueden cumplir a la vez cuando la capa animada se mueve; el corrector de posiciones de las uniones de Box2D no tiene tope (el de contactos sí) y teletransporta el cuerpo | Limitador: ningún cuerpo dinámico supera, en velocidad ni en desplazamiento por subpaso, el doble de la velocidad máxima con causa física (impulsos, emisores, 2× la capa animada más rápida, (gravedad + fuerzas) × duración) + 2000 px/s. Aviso «X (y N capas más) se aceleraba sin causa física… Revisa sus uniones» solo si hay una capa unida a algo que no cede; sin uniones así recorta en silencio picos numéricos (partículas apretadas en un anillo). Fixtures `test/fixtures/b7-aleatorias-*.json`; 3 regresiones (2 fallan con el motor anterior; 1 comprueba que no actúa con impulso de 100 000 px/s, pala rápida ni fuerza de 50 000 px/s²). La batería cuenta en «limitador» las escenas tocadas y falla si avisa sin uniones |
+
 ## Registro de trabajo
 
 - Sesión 1 (QA): auditoría, reproducción de F1–F5. F1 corregido con registro de claves por capa; 19 pruebas de regresión
