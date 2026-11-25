@@ -4,7 +4,7 @@
   var VERSION = '1.1.1';
   var $ = function (id) { return document.getElementById(id); };
   var all = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
-  var busy = false, simulating = false, cancelRequested = false, last = null, summary = null, playing = false, raf = 0;
+  var busy = false, simulating = false, cancelRequested = false, simStarted = 0, last = null, summary = null, playing = false, raf = 0;
   var CONTROLS = ['dynamic', 'fixed', 'force', 'particles', 'clear', 'environment', 'walls', 'join', 'jointType', 'preview'];
   var MATERIALS = [
     { name: 'Goma', density: 1.1, friction: 0.9, bounce: 0.7 }, { name: 'Pelota', density: 0.4, friction: 0.6, bounce: 0.88 },
@@ -235,9 +235,10 @@
 
   var SIM_HINT = 'Calcula la física en el área de trabajo y la escribe como fotogramas clave de Posición y Rotación. Ctrl/Cmd+Z la deshace.';
   $('simulate').onclick = function () {
-    if (simulating) { cancelRequested = true; $('simLabel').textContent = 'Cancelando…'; return; }
+    // Un doble clic en Simular no debe cancelar la simulación que acaba de empezar.
+    if (simulating) { if (Date.now() - simStarted > 500) { cancelRequested = true; $('simLabel').textContent = 'Cancelando…'; } return; }
     if (busy) return;
-    simulating = true; cancelRequested = false;
+    simulating = true; cancelRequested = false; simStarted = Date.now();
     $('simulate').classList.add('running'); $('simulate').classList.remove('done', 'stale');
     $('simLabel').textContent = 'Cancelar'; $('simulate').setAttribute('data-hint', 'Detiene el cálculo sin tocar las capas.');
     meter.set({ running: 0, contacts: [] });

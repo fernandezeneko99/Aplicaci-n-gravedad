@@ -41,7 +41,20 @@ var Gravedad = (function () {
     return c;
   }
   function parade(layer) { try { return layer.property('ADBE Effect Parade'); } catch (e) { return null; } }
+  // Memoria por llamada para las operaciones de solo lectura (resumen, huella, lectura de escena): cada capa recorre
+  // sus efectos y su grupo de transformacion una sola vez. Cada llamada al DOM de After cuesta en ExtendScript.
+  var memo = null;
+  function readOnly(fn) { var prev = memo; memo = {}; try { return fn(); } finally { memo = prev; } }
+  // Recorrido incremental: solo avanza por la lista de efectos hasta encontrar el nombre pedido.
+  function cachedControl(layer, name) {
+    var m = memo[layer.id] || (memo[layer.id] = {});
+    if (!m.fx) { m.fx = {}; m.parade = parade(layer); m.next = 1; m.count = m.parade ? m.parade.numProperties : 0; }
+    if (m.fx.hasOwnProperty(name)) return m.fx[name];
+    while (m.next <= m.count) { var e = m.parade.property(m.next++), n = e.name; if (!m.fx.hasOwnProperty(n)) m.fx[n] = e; if (n === name) return e; }
+    return null;
+  }
   function control(layer, name) {
+    if (memo) return cachedControl(layer, name);
     var fx = parade(layer);
     if (!fx) return null;
     for (var i = 1; i <= fx.numProperties; i++) if (fx.property(i).name === name) return fx.property(i);
@@ -90,7 +103,12 @@ var Gravedad = (function () {
   function select(c, layers) { for (var i = 1; i <= c.numLayers; i++) c.layer(i).selected = false; for (var j = 0; j < layers.length; j++) layers[j].selected = true; }
   function frameTime(c, k) { return c.workAreaStart + k / c.frameRate; }
   function frameCount(c) { return Math.max(1, Math.round(c.workAreaDuration * c.frameRate)); }
-  function transformProp(layer, name) { return layer.property('ADBE Transform Group').property(name); }
+  function transformProp(layer, name) {
+    if (!memo) return layer.property('ADBE Transform Group').property(name);
+    var m = memo[layer.id] || (memo[layer.id] = {});
+    if (!m.tr) { m.tr = layer.property('ADBE Transform Group'); m.p = {}; }
+    return m.p.hasOwnProperty(name) ? m.p[name] : (m.p[name] = m.tr.property(name));
+  }
   function animatedProp(p) { return !!p && (p.numKeys > 0 || (p.canSetExpression && p.expressionEnabled && p.expression !== '')); }
 
   // ---------- Transformaciones 2D ----------
@@ -804,7 +822,7 @@ var Gravedad = (function () {
       var sig = hadWorld && arg.signature ? arg.signature : signature(c);
       mem.ids = null; mem.sig = sig; mem.frames = frames; mem.start = c.workAreaStart; mem.fps = c.frameRate; mem.date = d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
       setCommentFields(w, mem);
-      var s = summary(c, true); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
+      var s = readOnly(function () { return summary(c, true); }); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
     });
   }
 
@@ -1004,7 +1022,7 @@ var Gravedad = (function () {
   return {
     VERSION: VERSION,
     _incoming: null,
-    inspect: function (raw) { return wrap(function (arg) { return summary(comp(true), !!arg.deep); }, raw); },
+    inspect: function (raw) { return wrap(function (arg) { return readOnly(function () { return summary(comp(true), !!arg.deep); }); }, raw); },
     bodies: function (raw) { return wrap(setBodies, raw); },
     normalize: function (raw) { return wrap(normalize, raw); },
     // Latido barato (varias veces por segundo): tiempo actual y si cambio la composicion o la seleccion.
@@ -1023,7 +1041,7 @@ var Gravedad = (function () {
     world: function (raw) { return wrap(setWorld, raw); },
     force: function (raw) { return wrap(force, raw); },
     particles: function (raw) { return wrap(particles, raw); },
-    gather: function (raw) { return wrap(gather, raw); },
+    gather: function (raw) { return wrap(function (arg) { return readOnly(function () { return gather(arg); }); }, raw); },
     cleanup: function (raw) { return wrap(cleanup, raw); },
     apply: function (raw) { return wrap(apply, raw); },
     clear: function (raw) { return wrap(clear, raw); },

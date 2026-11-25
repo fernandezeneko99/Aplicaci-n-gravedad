@@ -222,3 +222,18 @@ test('panel: unir capas, marcadores y choques en el medidor', { timeout: 30000 }
     assert.deepStrictEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+test('panel: doble clic en Simular no cancela la simulación', { timeout: 30000 }, async () => {
+  const { h, add } = scene();
+  const b = add('B', RECT, [40, 40], [400, 100]); b.selected = true;
+  const { browser, page, errors } = await open(h);
+  try {
+    await waitText(page, '#compChip', /Escena/);
+    await page.click('#dynamic'); await page.waitForSelector('#status.ok');
+    await page.dblclick('#simulate');
+    await waitText(page, '#status', /Simulado en|cancelada/, 20000);
+    assert.match(await text(page, '#status'), /Simulado en/);
+    assert.ok(b.transform.position.numKeys > 5);
+    assert.deepStrictEqual(errors, []);
+  } finally { await browser.close(); }
+});
