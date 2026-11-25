@@ -387,3 +387,33 @@ test('cambiar de composición mientras se calcula: las claves van a la composici
   assert.ok(a.transform.position.numKeys > 5);
   assert.strictEqual(other.numLayers, 0, 'la otra composición no se toca');
 });
+
+// ---------- Casos de editor: fuentes ausentes y nombres especiales ----------
+test('metraje con el archivo ausente: colisiona con su caja y se avisa (no se renderiza)', async () => {
+  const { FootageItem, FileSource } = require('./mock-ae.js');
+  const { h, c } = setup();
+  const src = new FootageItem('perdido.png', 120, 80, new FileSource(true), () => true); src.footageMissing = true; h.project._items.push(src);
+  const l = c.layers.add(src); sel(c, [l]); ok(h.call('assign', { mode: 'dynamic' }));
+  const out = await Pipeline.simulate(io(h));
+  assert.strictEqual(MockAE.stats.pngs, 0);
+  assert.ok(out.warnings.some((w) => /falta su archivo/.test(w)));
+  assert.ok(Math.abs(l.transform.position.keys.slice(-1)[0].v[1] - 680) < 1);
+});
+test('nombres con tildes, comillas, barras y emojis en capas y composición', async () => {
+  const { h, c } = setup();
+  c.name = 'Composición «final» / v2 ñ "😀"';
+  const a = shape(c, 'Pelota \\ "roja" · ñandú 🍎', [40, 40], [300, 100], true);
+  sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  const out = await Pipeline.simulate(io(h));
+  assert.strictEqual(out.host.bodies[0].name, 'Pelota \\ "roja" · ñandú 🍎');
+  assert.strictEqual(ok(h.call('inspect', {})).comp.name, c.name);
+  ok(h.call('clear')); assert.strictEqual(a.transform.position.numKeys, 0);
+});
+test('capa con remapeo de tiempo: se simula y Borrar la deja como estaba', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'remapeada', [40, 40], [300, 100]); a.timeRemapEnabled = true; a.startTime = -0.5;
+  sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  assert.ok(a.transform.position.numKeys > 5);
+  ok(h.call('clear')); assert.deepStrictEqual(plain(a.transform.position.value), [300, 100]);
+});

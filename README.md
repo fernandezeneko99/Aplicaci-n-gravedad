@@ -1,7 +1,7 @@
 # Gravedad 1.1 · física 2D nativa para After Effects
 
 Extensión (panel CEP) con **motor de física incluido**: no necesita plugins compilados, así que el mismo
-`Gravedad-1.1.1.zxp` funciona en **macOS y Windows** (After Effects 2022 o posterior).
+`Gravedad-1.2.0.zxp` funciona en **macOS y Windows** (After Effects 2022 o posterior).
 
 La física se calcula en el panel (Box2D vía [planck.js](https://github.com/piqnt/planck.js), MIT) y se escribe como
 **fotogramas clave de Posición y Rotación**: el resultado se reproduce al instante, se renderiza en cualquier equipo y
@@ -11,19 +11,19 @@ se deshace con Ctrl/Cmd+Z.
 
 1. Si tienes **Gravedad Nativa 0.6.x**, desinstálala primero (usa otro identificador y quedaría un panel roto).
    La 0.5.0 se sustituye sola.
-2. Instala `Gravedad-1.1.1.zxp` con un instalador de ZXP (por ejemplo *ZXP Installer* de aescripts, gratuito), o con
+2. Instala `Gravedad-1.2.0.zxp` con un instalador de ZXP (por ejemplo *ZXP Installer* de aescripts, gratuito), o con
    el instalador de Adobe desde la terminal:
    - macOS:
      ```bash
-     "/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent" --install ~/Downloads/Gravedad-1.1.1.zxp
+     "/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent" --install ~/Downloads/Gravedad-1.2.0.zxp
      ```
    - Windows (PowerShell):
      ```bash
-     & "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "$HOME\Downloads\Gravedad-1.1.1.zxp"
+     & "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "$HOME\Downloads\Gravedad-1.2.0.zxp"
      ```
 3. Reinicia After Effects y abre **Ventana › Extensiones › Gravedad**.
 
-Instalación manual (alternativa): descomprime `Gravedad-1.1.1-carpeta.zip` y copia la carpeta `Gravedad` a
+Instalación manual (alternativa): descomprime `Gravedad-1.2.0-carpeta.zip` y copia la carpeta `Gravedad` a
 `~/Library/Application Support/Adobe/CEP/extensions/` (macOS) o `%APPDATA%\Adobe\CEP\extensions\` (Windows).
 
 ## Uso
@@ -79,7 +79,7 @@ npm test
 npm run build
 ```
 ```bash
-python3 tools/verify_zxp.py --strict dist/Gravedad-1.1.1.zxp
+python3 tools/verify_zxp.py --strict dist/Gravedad-1.2.0.zxp
 ```
 
 - `src/` es la extensión tal cual se empaqueta. `src/host/*.jsx` es ExtendScript (ES3, solo ASCII: `node tools/ascii-jsx.js`).

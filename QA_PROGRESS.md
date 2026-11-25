@@ -55,10 +55,32 @@ Documento vivo de calidad. Al retomar: leer «Siguiente acción», contrastar co
 | F1 | Proyecto 1.1.1 (solo ids) | OK: no borra a ciegas, avisa | «proyecto de la 1.1.1…» | AE-3 |
 | F1 | Capa con padre: Desactivado / Fijo a mitad | OK: padre recuperado sin saltos | «capa con padre…» (2 pruebas) | AE-1 |
 | F1 | Deshacer tras Fijo/Desactivado/Borrar | Sin verificar (el modelo simulado no implementa Deshacer) | — | AE-4 |
-| F2 Partículas | Dos clics sin selección / con emisor seleccionado | FALLA: círculos y emisores duplicados | `repro.js` | Corregir |
-| F3 Colisiones | Dinámico rápido contra dinámico fino | No reproducido aún | `repro.js` | Explorar |
-| F4 Mundo | Luna → Espacio → Tierra; techo + paredes off/on | FALLA: pierde gravedad y techo | `repro.js` | Corregir |
-| F5 Fuerzas | Ventilador afecta a todo | Sin forma de acotarlo | `repro.js` | Añadir «Solo afecta a» |
+| F2 Partículas | Dos clics sin selección | OK: una sola forma de ejemplo reutilizada | «F2 · dos clics sin selección» | AE-5 |
+| F2 | Doble clic (emisor recién creado seleccionado) | OK: no duplica; explica qué hacer | «F2 · doble clic…» | AE-5 |
+| F2 | Emisor + capas seleccionadas | OK: se añaden como formas sin repetir | «F2 · emisor + capas…» | AE-5 |
+| F3 Colisiones | Bola 3–8 px a 3000–15000 px/s contra tabla dinámica de 3 px | OK (antes atravesaba en 5 de 6) | «F3 · bola de radio…» (3) | — |
+| F3 | 60 partículas a 6000 px/s dentro de anillo dinámico de 4 px | OK (antes escapaban 31) | «F3 · partículas…» | — |
+| F3 | Pesado sobre ligero (7,8:0,2 y 100:0,1), pila de 15 cajas | OK sin cambios (solape < 0,4 px) | `f3.js` | — |
+| F4 Mundo | Luna → Espacio → Tierra | OK: vuelve a 160 | «F4 · Luna → Espacio → Tierra» | AE-6 |
+| F4 | Techo + Paredes off/on; memoria tras Simular/Borrar | OK | «F4 · …» (5) | AE-6 |
+| F5 Fuerzas | Por defecto afecta a todas | OK (comportamiento anterior) | «F5 · por defecto…» | — |
+| F5 | «Solo a la capa»; capa borrada; acotada a un emisor | OK: solo esa capa; sin capa no se aplica y avisa | «F5 · …» (3) | AE-6 |
+| Integridad | Fallo a mitad de escribir; reintento | OK: registro guardado; Borrar restaura; reintento limpio | «fallo a mitad…», «reintento…» | — |
+| Integridad | Cambiar de composición durante el cálculo | OK: se escribe en la simulada | «cambiar de composición mientras…» | AE-6 |
+| Uso | Doble clic en Simular | OK: no cancela (antes sí) | `panel.test.js` «doble clic» | — |
+
+## Rendimiento (medido)
+
+| Medida | Escena | Antes | Después | Herramienta |
+|---|---|---|---|---|
+| Llamadas al DOM · resumen ligero | 300 cuerpos + 40 capas | 4 880 | 2 780 (−43 %) | `scratchpad/hostbench.js` (contador en el modelo simulado) |
+| Llamadas al DOM · resumen completo (cada ≥ 4 s) | ídem | 27 574 | 16 634 (−40 %) | ídem |
+| Llamadas al DOM · leer escena | ídem | 83 462 | 36 732 (−56 %) | ídem |
+| Motor · 500 cuerpos, 300 fot. | — | 10,0 s | 10,8 s (+8 %, coste de F3) | `scratchpad/bench.js` (mediana de 3) |
+| Motor · 400 partículas, 300 fot. | — | 4,2 s | 4,8 s (+14 %, coste de F3) | ídem |
+
+Los scripts de medición están en la carpeta temporal de la sesión; su contenido está descrito en el registro para rehacerlos
+(`hostbench.js`: escena de 300 rectángulos dinámicos, contador envolviendo `property`, `valueAtTime`, `keyTime`, `keyValue`).
 
 ## Procedimientos pendientes en After Effects real (no disponible en este entorno)
 
@@ -75,12 +97,37 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 - **AE-4** Tras cada acción (Fijo, Desactivado, Borrar, Simular), Ctrl/Cmd+Z deja el proyecto exactamente como antes y
   Ctrl/Cmd+Shift+Z lo rehace; el registro (marcadores del nulo de mundo) acompaña.
 
+- **AE-5** Sin selección pulsar Partículas dos veces: una sola «Forma de partícula» y el segundo clic explica que hay un
+  emisor seleccionado. Seleccionar emisor + 2 capas y pulsar: aparecen «Capa de partícula 2/3».
+- **AE-6** Ajustes del mundo: Luna → interruptor Espacio → Tierra: 160 px/s². Activar Techo, quitar y poner Paredes: el techo
+  vuelve. Ventilador con «A todas las capas» apagado y «Solo a la capa» = A: solo A se mueve; borrar A: aviso.
+  Cambiar de composición mientras simula una escena larga: las claves aparecen en la composición original.
+
 ## Registro de trabajo
 
 - Sesión 1 (QA): auditoría, reproducción de F1–F5. F1 corregido con registro de claves por capa; 19 pruebas de regresión
   (`test/qa-regressions.test.js`), 12 de ellas fallan con el código anterior. Batería completa: 228/228.
 
+- Sesión 1 (cont.): F2, F3, F4, F5, integridad (fallo a mitad, cambio de composición), doble clic y rendimiento del host.
+  Cada corrección con regresión que falla con el código anterior. Batería completa: 249/249.
+
+## Resultados por capa de verificación (1.2.0)
+
+| Capa | Qué | Resultado | Dónde |
+|---|---|---|---|
+| Código | `npm test`: 252 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 252/252 | Contenedor Linux, Node 22, Chromium de Playwright |
+| Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.0.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
+| Paquete | Panel ejecutado desde el `.zxp` extraído | 7/7 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
+| After Effects real | Instalación, carga del panel, AE-1 … AE-6, Deshacer/Rehacer, guardar y reabrir | **Pendiente** (no hay After en este entorno) | Ver procedimientos |
+
+Casos de editor añadidos en esta tanda: metraje con archivo ausente (caja + aviso), nombres con tildes, comillas, barras y
+emojis, capa con remapeo de tiempo.
+
 ## Siguiente acción
 
-F2: Partículas no debe duplicar el círculo de ejemplo ni el emisor (reutilizar la forma de ejemplo; con un emisor
-seleccionado, añadir las capas seleccionadas como formas). Ejecutar `npm test` antes y después.
+1. **Necesita intervención (entorno con After Effects):** instalar `dist/Gravedad-1.2.0.zxp` sobre una instalación con 0.5.0
+   (mismo id `com.eneko.gravedad`) en macOS y Windows con ZXP Installer, comprobar que el panel abre desde
+   Ventana › Extensiones › Gravedad y ejecutar AE-1 … AE-6 en AE 2022, 2024 y 2025. Anotar aquí cada resultado.
+2. Mientras tanto (ejecutable aquí): revisar los mensajes del panel en tamaños 260–600 px con secciones abiertas y repasar
+   recursos activos al cerrar el panel (intervalo del latido, `ResizeObserver`); medir el tiempo de escritura de claves
+   (`apply`) con el contador de `hostbench.js` sobre 300 cuerpos.

@@ -53,6 +53,7 @@
     host.bodies.forEach(function (b) {
       names[b.id] = b.name;
       if (b.note === 'alfa') warnings.push(b.name + ': no se pudo leer su alfa; colisiona con su caja.');
+      if (b.note === 'fuente-ausente') warnings.push(b.name + ': falta su archivo de origen; colisiona con su caja. Vuelve a vincular el metraje y simula de nuevo.');
       if (b.note === 'mascara-contraida') warnings.push(b.name + ': la expansión negativa de máscara no se aplica a la colisión; colisiona con el trazado de la máscara.');
       if (b.note === 'mascaras') warnings.push(b.name + ': solo se usan las máscaras en modo Añadir sin invertir.');
       if (b.note === 'padre-animado') warnings.push(b.name + ': su padre está animado; al simular se quita el padre.');

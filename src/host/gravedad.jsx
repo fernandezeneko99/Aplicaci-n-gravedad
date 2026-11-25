@@ -7,7 +7,7 @@ if (typeof JSON === 'undefined') $.evalFile(new File(new File($.fileName).parent
 $.evalFile(new File(new File($.fileName).parent.fsName + '/geometry.jsx'));
 
 var Gravedad = (function () {
-  var VERSION = '1.1.1';
+  var VERSION = '1.2.0';
   var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:', sample: 'gravedad-forma de ejemplo' };
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
@@ -540,6 +540,8 @@ var Gravedad = (function () {
     if (g && g.skippedMasks) note = 'mascaras';
     if (g && g.shrunkMasks) note = 'mascara-contraida';
     if (!g && l instanceof ShapeLayer) g = GravedadGeometry.shapeLayer(l, t);
+    // Metraje sin archivo (After dibuja barras de color): su contorno real no se puede leer; se usa la caja y se avisa.
+    if (!g && l.source && (function () { try { return l.source.footageMissing === true; } catch (e) { return false; } }())) return { shape: boxOf(l, t), note: 'fuente-ausente' };
     if (!g && (solidSource(l) || opaqueFootage(l))) g = boxOf(l, t);
     if (!g) {
       // Capas con la misma fuente (metraje o precomposicion) en el mismo instante comparten render, salvo que tengan
