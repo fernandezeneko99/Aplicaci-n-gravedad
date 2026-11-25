@@ -7,6 +7,7 @@
  *   node tools/battery/run.js --pilot             lote piloto: 10 escenas por familia, sin guardar progreso
  *   node tools/battery/run.js --family F --seed N repite un caso y muestra su detalle
  *   node tools/battery/run.js --reset             borra el progreso guardado
+ *   (columna «limitador»: escenas en las que el motor recortó una velocidad sin causa física, B7)
  *   node tools/battery/run.js --summary [archivo] resume el progreso guardado (sin ejecutar)
  *   node tools/battery/run.js --workers 4         número de procesos (por defecto, núcleos)
  *
@@ -50,7 +51,7 @@ if (!isMainThread) {
   parentPort.on('message', (job) => {
     if (job.stress !== undefined) {
       const s = stressScenes()[job.stress], t = Date.now(); let fails = [];
-      try { const res = Sim.run(s.scene); fails = L.genericChecks(s.scene, res, { noPenetration: true, containTol: 4 }); } catch (e) { fails = [{ check: 'excepción', expected: 'sin errores', observed: e.message, frame: null }]; }
+      try { const res = Sim.run(s.scene); fails = L.genericChecks(s.scene, res, { noPenetration: true, containTol: 4 }).concat(L.limiterCheck(s.scene, res)); } catch (e) { fails = [{ check: 'excepción', expected: 'sin errores', observed: e.message, frame: null }]; }
       parentPort.postMessage({ stress: job.stress, name: s.name, ms: Date.now() - t, fails });
       return;
     }
@@ -58,10 +59,10 @@ if (!isMainThread) {
     for (let seed = job.start; seed < job.end; seed++) {
       const t = Date.now(); let made, res, fails, det = null;
       try {
-        made = fam.make(seed); res = Sim.run(JSON.parse(JSON.stringify(made.scene))); fails = made.check(res);
+        made = fam.make(seed); res = Sim.run(JSON.parse(JSON.stringify(made.scene))); fails = made.check(res).concat(L.limiterCheck(made.scene, res));
         if (seed % DETERMINISM_EVERY === 0) { const again = Sim.run(JSON.parse(JSON.stringify(made.scene))); det = JSON.stringify(again.bodies) === JSON.stringify(res.bodies) && JSON.stringify(again.particles) === JSON.stringify(res.particles); }
       } catch (e) { fails = [{ check: 'excepción', expected: 'sin errores', observed: e.stack.split('\n').slice(0, 3).join(' | '), frame: null }]; }
-      results.push({ seed, hash: made ? L.hashScene(made.scene) : null, ms: Date.now() - t, fails, det });
+      results.push({ seed, hash: made ? L.hashScene(made.scene) : null, ms: Date.now() - t, fails, det, lim: res && res.limited ? res.limited : 0 });
     }
     parentPort.postMessage({ family: job.family, start: job.start, end: job.end, results });
   });
@@ -85,7 +86,7 @@ function reduce(family, seed) {
 }
 
 function single(family, seed) {
-  const made = families[family].make(seed), res = Sim.run(JSON.parse(JSON.stringify(made.scene))), fails = made.check(res);
+  const made = families[family].make(seed), res = Sim.run(JSON.parse(JSON.stringify(made.scene))), fails = made.check(res).concat(L.limiterCheck(made.scene, res));
   console.log(JSON.stringify({ family, seed, hash: L.hashScene(made.scene), bodies: (made.scene.bodies || []).length, frames: made.scene.frames, fails }, null, 2));
   if (fails.length) { const small = reduce(family, seed); console.log('caso reducido:', JSON.stringify(small)); }
   process.exitCode = fails.length ? 1 : 0;
@@ -120,7 +121,7 @@ async function battery(pilot) {
       w.on('message', (m) => {
         if (m.stress !== undefined) st.stress[m.stress] = { name: m.name, ms: m.ms, fails: m.fails };
         else {
-          st.lots[w.job.key] = m.results.map((x) => [x.seed, x.hash, x.ms, x.det, x.fails.length ? x.fails : 0]);
+          st.lots[w.job.key] = m.results.map((x) => [x.seed, x.hash, x.ms, x.det, x.fails.length ? x.fails : 0, x.lim]);
           for (const x of m.results) if (x.fails.length && !pilot) fs.writeFileSync(path.join(FAIL, m.family + '-' + x.seed + '.json'), JSON.stringify({ family: m.family, seed: x.seed, engine: hash, fails: x.fails, scene: families[m.family].make(x.seed).scene }, null, 1));
         }
         doneLots++;
@@ -140,8 +141,9 @@ function summarize(st, pilot) {
   const fam = {}, hashes = new Set(), failures = [];
   let det = 0, detFail = 0, scenes = 0, ms = 0;
   for (const key of Object.keys(st.lots)) {
-    const name = key.split(':')[0]; fam[name] = fam[name] || { escenas: 0, fallos: 0, determinismo: 0, ms: 0, tipos: {} };
-    for (const [seed, hash, t, d, fails] of st.lots[key]) {
+    const name = key.split(':')[0]; fam[name] = fam[name] || { escenas: 0, fallos: 0, determinismo: 0, ms: 0, limitador: 0, tipos: {} };
+    for (const [seed, hash, t, d, fails, lim] of st.lots[key]) {
+      if (lim) fam[name].limitador++;
       scenes++; ms += t; fam[name].escenas++; fam[name].ms += t; if (hash) hashes.add(hash);
       if (d !== null && d !== undefined) { det++; fam[name].determinismo++; if (!d) { detFail++; failures.push({ family: name, seed, check: 'determinismo' }); } }
       if (fails) { fam[name].fallos++; for (const f of fails) fam[name].tipos[f.check] = (fam[name].tipos[f.check] || 0) + 1; failures.push({ family: name, seed, check: fails[0].check, expected: fails[0].expected, observed: fails[0].observed, frame: fails[0].frame }); }
@@ -150,8 +152,8 @@ function summarize(st, pilot) {
   const stress = Object.keys(st.stress).map((i) => ({ escena: st.stress[i].name, ms: st.stress[i].ms, fallos: st.stress[i].fails.length ? st.stress[i].fails : 0 }));
   const summary = { motor: st.engine, fecha: new Date().toISOString(), escenasEjecutadas: scenes, escenasDistintas: hashes.size, repeticionesDeterminismo: det, determinismoFallido: detFail, estres: stress.length, segundosCpu: Math.round(ms / 1000), escenasConFallo: failures.filter((f) => f.check !== 'determinismo').length, familias: fam, estresDetalle: stress, fallos: failures.slice(0, 200) };
   if (!pilot) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify(summary, null, 1)); }
-  console.log('\nFamilia              escenas  fallos  determinismo  ms/escena');
-  for (const n of Object.keys(fam)) console.log(n.padEnd(20) + String(fam[n].escenas).padStart(8) + String(fam[n].fallos).padStart(8) + String(fam[n].determinismo).padStart(14) + String(Math.round(fam[n].ms / Math.max(1, fam[n].escenas))).padStart(11) + (fam[n].fallos ? '  ' + JSON.stringify(fam[n].tipos) : ''));
+  console.log('\nFamilia              escenas  fallos  determinismo  ms/escena  limitador');
+  for (const n of Object.keys(fam)) console.log(n.padEnd(20) + String(fam[n].escenas).padStart(8) + String(fam[n].fallos).padStart(8) + String(fam[n].determinismo).padStart(14) + String(Math.round(fam[n].ms / Math.max(1, fam[n].escenas))).padStart(11) + String(fam[n].limitador).padStart(11) + (fam[n].fallos ? '  ' + JSON.stringify(fam[n].tipos) : ''));
   console.log('\nEjecutadas ' + scenes + ' · distintas ' + hashes.size + ' · determinismo ' + det + ' (' + detFail + ' fallidas) · estrés ' + stress.length + ' (' + stress.filter((s) => s.fallos).length + ' con fallo) · con fallo ' + summary.escenasConFallo);
   return summary;
 }

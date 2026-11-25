@@ -105,3 +105,23 @@ for (const [label, step] of [['avance constante de 60 px/fot.', (k) => -60 * k],
     for (let k = 0; k < frames; k++) assert.ok(B[k * 3] < W[k * 3], 'fotograma ' + k + ': caja en ' + B[k * 3].toFixed(1) + ', pared en ' + W[k * 3].toFixed(1));
   });
 }
+
+// B7 (lote 2, aleatorias 1119 y 703): un cuerpo unido a la vez a una capa animada y al mundo no puede cumplir las dos
+// uniones; Box2D respondía con impulsos sin límite (saltos de 8000–40000 px en un fotograma en una composición de 640 px).
+const worstJump = (r) => { let w = 0; for (const rec of Object.values(r.bodies).concat(r.particles)) { const d = rec.data; for (let k = 1; k < d.length / 3; k++) w = Math.max(w, Math.hypot(d[k * 3] - d[k * 3 - 3], d[k * 3 + 1] - d[k * 3 - 2])); } return w; };
+for (const seed of [1119, 703]) {
+  test('B7 · caso reducido aleatorias ' + seed + ': unión imposible con una capa animada sin saltos absurdos y con aviso', () => {
+    const sc = require('./fixtures/b7-aleatorias-' + seed + '.json'), r = Sim.run(JSON.parse(JSON.stringify(sc)));
+    assert.ok(worstJump(r) < Math.max(sc.width, sc.height), 'salto máximo ' + worstJump(r).toFixed(0) + ' px/fotograma');
+    const w = r.warnings.find((x) => x.code === 'velocidad-limitada');
+    assert.ok(w, 'avisa: ' + JSON.stringify(r.warnings));
+    assert.ok(sc.joints.some((j) => j.a === w.id || j.b === w.id), 'nombra una capa con unión: ' + w.id);
+  });
+}
+test('B7 · el limitador no actúa en escenas con causa física (impulso de 100000 px/s, pala rápida, fuerza fuerte)', () => {
+  const fast = Sim.run(scene({ fps: 25, frames: 50, world: { gravity: 980, floor: true, sides: true }, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 500, y: 500 }, velocity: { x: 100000, y: -100000, a: 100000 }, shape: { kind: 'circle', r: 12 } }] }));
+  const track = []; for (let k = 0; k < 30; k++) track.push([1200 - 60 * k, 540, 0]);
+  const paddle = Sim.run(scene({ fps: 25, frames: 30, world: { gravity: 0 }, bodies: [{ id: 'w', type: 'kinematic', pose: { x: 1200, y: 540, a: 0 }, track, shape: { kind: 'box', w: 3, h: 700 } }, { id: 'b', type: 'dynamic', pose: { x: 1000, y: 540 }, shape: { kind: 'circle', r: 8 }, material: { restitution: 1 } }] }));
+  const force = Sim.run(scene({ fps: 25, frames: 100, world: { gravity: 0 }, forces: [{ type: 'wind', track: [[0, 0, 0, 50000, 0]] }], bodies: [{ id: 'a', type: 'dynamic', pose: { x: 100, y: 500 }, shape: { kind: 'circle', r: 12 } }] }));
+  for (const r of [fast, paddle, force]) assert.ok(!r.warnings.some((x) => x.code === 'velocidad-limitada'), JSON.stringify(r.warnings));
+});

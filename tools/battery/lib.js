@@ -81,6 +81,12 @@ function lastFrame(rec) { const n = rec.data.length / 3; return n - 1 + rec.from
 
 // ---------- Comprobaciones genéricas ----------
 // Devuelven { ok:false, check, expected, observed, frame } en el primer incumplimiento.
+// El limitador de velocidad del motor (B7) solo debe actuar con uniones imposibles; en otra escena es un falso positivo.
+function limiterCheck(scene, res) {
+  const w = (res.warnings || []).find((x) => x.code === 'velocidad-limitada');
+  if (!w || (scene.joints || []).length) return [];
+  return [{ check: 'limitador sin uniones', expected: 'sin recortes de velocidad en una escena sin uniones', observed: w.id + ' (+' + w.others + ') a ' + Math.round(w.limit) + ' px/s', frame: null }];
+}
 function genericChecks(scene, res, opts) {
   opts = opts || {};
   const frames = scene.frames, fails = [];
@@ -136,4 +142,4 @@ function genericChecks(scene, res, opts) {
 
 function hashScene(scene) { const t = JSON.stringify(scene); let h1 = 2166136261, h2 = 5381; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = (Math.imul(h2, 33) + c) | 0; } return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36); }
 
-module.exports = { rng, FPS, QUALITY, RES, PPM, substeps, speedCap, randomShape, pieces, place, extent, penetration, bodyPenetration, minThickness, frameOf, lastFrame, genericChecks, hashScene };
+module.exports = { limiterCheck, rng, FPS, QUALITY, RES, PPM, substeps, speedCap, randomShape, pieces, place, extent, penetration, bodyPenetration, minThickness, frameOf, lastFrame, genericChecks, hashScene };

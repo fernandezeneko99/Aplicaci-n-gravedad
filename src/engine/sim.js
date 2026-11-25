@@ -332,6 +332,33 @@
     return { hz: Math.min(960, Math.ceil(2 * speed / thin)), thickness: thin, speed: speed };
   }
   function density(m) { return Math.max(0.0001, m && m.density !== undefined ? m.density : 1); }
+  // Velocidad máxima con causa física (px/s): impulsos iniciales, emisores, el doble de la capa animada más rápida (rebotar
+  // contra una pala que se mueve) y lo que pueden acelerar la gravedad y todas las fuerzas juntas durante la escena.
+  // Un cuerpo unido a la vez a una capa animada y a otra restricción (el mundo, el suelo) no puede cumplir las dos y Box2D
+  // respondía con impulsos sin límite (saltos de 40000 px en un fotograma). Por encima del doble de este valor se recorta.
+  function reach(built) {
+    var r = built.circle ? Math.sqrt(built.circle.x * built.circle.x + built.circle.y * built.circle.y) + built.circle.r : 0;
+    for (var i = 0; i < built.pieces.length; i++) for (var k = 0; k < built.pieces[i].length; k++) { var v = built.pieces[i][k]; r = Math.max(r, Math.sqrt(v[0] * v[0] + v[1] * v[1])); }
+    return r;
+  }
+  function speedLimit(scene, pending, fps) {
+    var v0 = 0, kin = 0, acc = Math.abs((scene.world && scene.world.gravity !== undefined) ? scene.world.gravity : 980);
+    for (var i = 0; i < pending.length; i++) {
+      var b = pending[i].def;
+      if (b.velocity) v0 = Math.max(v0, Math.sqrt((b.velocity.x || 0) * (b.velocity.x || 0) + (b.velocity.y || 0) * (b.velocity.y || 0)));
+      if (b.type === 'kinematic' && b.track) {
+        var r = pending[i].built ? reach(pending[i].built) : 0;
+        for (var k = 1; k < b.track.length; k++) {
+          var a = b.track[k - 1], c = b.track[k];
+          kin = Math.max(kin, (Math.sqrt((c[0] - a[0]) * (c[0] - a[0]) + (c[1] - a[1]) * (c[1] - a[1])) + Math.abs(rad(c[2] - a[2])) * r) * fps);
+        }
+      }
+    }
+    (scene.emitters || []).forEach(function (e) { if (!e.max || !e.track) return; e.track.forEach(function (f) { v0 = Math.max(v0, Math.abs(f[4] || 0) * (1 + (e.speedVariation || 0))); }); });
+    (scene.forces || []).forEach(function (f) { var m = 0; (f.track || []).forEach(function (t) { m = Math.max(m, Math.abs(t[3] || 0)); }); acc += m; });
+    var legit = v0 + 2 * kin + acc * (scene.frames || 1) / fps;
+    return 2 * legit + 2000;
+  }
 
   // ---------- Utilidades ----------
   function rng(seed) {
@@ -361,7 +388,7 @@
     var walls = thinWallHz(scene, pending);
     if (!fixedQuality && walls.hz > hz) { warnings.push({ id: null, code: 'calidad-paredes', hz: walls.hz, from: hz, thickness: walls.thickness, speed: walls.speed }); hz = walls.hz; }
     if (masses.clamped) warnings.push({ id: null, code: 'masa-limitada', ratio: masses.raw, limit: masses.limit });
-    var sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
+    var sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub, vmax = speedLimit(scene, pending, fps) / PPM, governed = {};
     // Cuerpos que empiezan solapados: Box2D los separa hasta 0,2 m por subpaso, así que a más calidad más violento era el
     // «salto» (hasta 14000 px/s medidos). Se limita la corrección a 800 px/s, sea cual sea la calidad. Pilas: sin cambios.
     planck.Settings.maxLinearCorrection = Math.min(0.2, 800 / PPM * dt);
@@ -510,6 +537,42 @@
       }
     }
 
+    function anchored(id) {
+      return (scene.joints || []).some(function (j) {
+        if (j.a !== id && j.b !== id) return false;
+        var other = j.a === id ? j.b : j.a, o = other ? byId[other] : null;
+        return !other || (o && o.def && o.def.type !== 'dynamic');
+      });
+    }
+    // El corrector de posiciones de las uniones de Box2D no tiene tope (los contactos sí): con dos uniones incompatibles
+    // teletransportaba el cuerpo cientos de px en un subpaso. Se limita también el desplazamiento por subpaso.
+    var before = [], governedIds = [], finished = false;
+    // Un solo aviso, y solo si hay una capa unida a algo que no cede (capa animada, fija o el mundo): es la causa y se
+    // nombra; las demás capas frenadas son las que golpeó. Sin uniones así, el recorte solo quita algún pico de energía
+    // numérico (partículas apretadas) y no se avisa; queda contado en out.limited.
+    function finish() {
+      if (finished) return; finished = true;
+      out.limited = governedIds.length;
+      var cause = governedIds.filter(anchored)[0];
+      if (cause) warnings.push({ id: cause, code: 'velocidad-limitada', limit: vmax * PPM, others: governedIds.length - 1 });
+    }
+    function remember() { for (var i = 0; i < live.length; i++) { var b = live[i].body, p = b.getPosition(); before[i] = b.getType() === 'dynamic' ? [b, p.x, p.y] : null; } }
+    function govern() {
+      for (var i = 0; i < live.length; i++) {
+        var b = live[i].body;
+        if (!b || b.getType() !== 'dynamic') continue;
+        var v = b.getLinearVelocity(), sp = Math.sqrt(v.x * v.x + v.y * v.y), was = before[i], over = sp > vmax;
+        if (was && was[0] === b) {
+          var p = b.getPosition(), dx = p.x - was[1], dy = p.y - was[2], d = Math.sqrt(dx * dx + dy * dy), cap = vmax * dt;
+          if (d > cap) { b.setTransform(Vec2(was[1] + dx * cap / d, was[2] + dy * cap / d), b.getAngle()); over = true; }
+        }
+        if (!over) continue;
+        if (sp > vmax) b.setLinearVelocity(Vec2(v.x * vmax / sp, v.y * vmax / sp));
+        var id = b.gravedadEmitter || b.getUserData();
+        if (id && !governed[id]) { governed[id] = true; governedIds.push(id); }
+      }
+    }
+
     var k = 0;
     function step(count) {
       var end = Math.min(frames, k + (count || frames));
@@ -534,7 +597,7 @@
         drive(k);
         guardTunneling();
         current = k + 1;
-        for (var s = 0; s < sub; s++) { applyForces(k); world.step(dt, 8, 3); }
+        for (var s = 0; s < sub; s++) { applyForces(k); remember(); world.step(dt, 8, 3); govern(); }
         for (i = 0; i < live.length; i++) {
           var q = live[i].body.getPosition();
           if (!isFinite(q.x) || !isFinite(q.y)) throw Error('La simulación se volvió inestable. Revisa tamaños y fuerzas extremas.');
@@ -543,7 +606,7 @@
       return { done: k >= frames, frame: Math.min(k, frames), frames: frames };
     }
 
-    return { step: step, result: function () { return out; } };
+    return { step: step, result: function () { finish(); return out; } };
   }
 
   function run(scene) { var s = create(scene); s.step(); return s.result(); }

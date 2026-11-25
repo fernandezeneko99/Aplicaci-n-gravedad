@@ -50,6 +50,7 @@
     if (w.code === 'calidad-subida') return 'Densidades muy distintas (relación ' + Math.round(w.ratio) + ':1): la calidad sube de ' + w.from + ' a ' + w.hz + ' pasos/s para que no se atraviesen. Tarda algo más.';
     if (w.code === 'calidad-paredes') return 'Paredes móviles finas (' + Math.round(w.thickness * 10) / 10 + ' px) y objetos rápidos (' + Math.round(w.speed) + ' px/s): la calidad sube de ' + w.from + ' a ' + w.hz + ' pasos/s para que no las atraviesen.';
     if (w.code === 'masa-limitada') return 'Relación de densidades de ' + Math.round(w.ratio) + ':1: con esta gravedad la física solo es estable hasta ' + Math.round(w.limit || 1000) + ':1; se simula como ' + Math.round(w.limit || 1000) + ':1.';
+    if (w.code === 'velocidad-limitada') return who + (w.others ? ' (y ' + w.others + (w.others === 1 ? ' capa más' : ' capas más') + ')' : '') + ' se aceleraba sin causa física (suele ser una unión con una capa animada que choca con otra unión o con el suelo); la velocidad se limita a ' + Math.round(w.limit) + ' px/s. Revisa sus uniones.';
     if (w.code === 'union-sin-capa') return who + ': la capa a la que está unida no es un cuerpo; se ignora la unión.';
     if (w.code === 'union-sin-dinamico') return who + ': una unión necesita al menos un cuerpo dinámico.';
     if (w.code === 'contorno-cruzado') return who + ': el trazado se cruza consigo mismo; se usa su contorno convexo.';
