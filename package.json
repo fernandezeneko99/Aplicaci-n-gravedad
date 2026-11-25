@@ -1,0 +1,16 @@
+{
+  "name": "gravedad",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gravedad: física 2D nativa para After Effects (panel CEP con motor incluido)",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node tools/pack.js"
+  },
+  "devDependencies": {
+    "acorn": "8.14.0",
+    "acorn-walk": "8.3.4",
+    "planck": "1.0.0"
+  }
+}
