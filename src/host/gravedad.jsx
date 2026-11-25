@@ -759,16 +759,21 @@ var Gravedad = (function () {
 
   // result: archivo JS escrito por el panel con "Gravedad._incoming = {...}".
   function apply(arg) {
-    var c = comp(), frames, times = [], k;
+    var c, frames, times = [], k;
     Gravedad._incoming = null;
     $.evalFile(new File(arg.file));
     var res = Gravedad._incoming; Gravedad._incoming = null;
-    if (!res || res.compId !== c.id) throw Error('La simulaci\u00f3n no corresponde a la composici\u00f3n activa. Vuelve a simular.');
+    // Se escribe en la composicion simulada aunque el usuario haya cambiado de composicion mientras se calculaba.
+    if (!res) throw Error('No se pudo leer el resultado de la simulaci\u00f3n. Vuelve a simular.');
+    try { c = app.project.itemByID(res.compId); } catch (eId) { c = null; }
+    if (!(c instanceof CompItem)) throw Error('La composici\u00f3n simulada ya no existe. Vuelve a simular.');
     frames = res.frames;
     for (k = 0; k <= frames; k++) times.push(round(frameTime(c, k) * 1e6) / 1e6);
     return undo('Gravedad \u00b7 Simular', function () {
       var written = 0, created = 0, problems = [], now = {}, hadWorld = !!find(c, TAG.world), store = readStore(c), end = times[times.length - 1] + 1 / c.frameRate;
       keysWritten = 0;
+      // Si algo falla a mitad, el registro de lo ya escrito se guarda igualmente (finally): Borrar podra deshacerlo.
+      try {
       removeParticles(c);
       // Capas simuladas antes que ya no son dinamicas (cambiadas en Controles de efectos): se asientan primero.
       var pend = pendingSettles(c, store);
@@ -815,8 +820,8 @@ var Gravedad = (function () {
         dup.moveBefore(tpl);
         created++;
       }
+      } finally { writeStore(c, store); }
       var w = ensureWorld(c), d = new Date();
-      writeStore(c, store);
       // Si el nulo de mundo se acaba de crear, la huella se recalcula (el mundo forma parte de ella).
       var mem = commentFields(w);
       var sig = hadWorld && arg.signature ? arg.signature : signature(c);

@@ -352,3 +352,38 @@ test('F3 · partículas a 6000 px/s no escapan de un anillo dinámico de 4 px', 
     emitters: [{ id: 'e', max: 60, seed: 3, shape: { kind: 'circle', r: 4 }, track: [[960, 540, 0, 600, 6000, 360, 0]], spin: 0 }] });
   res.particles.forEach((p) => { for (let k = 0; k < p.data.length / 3; k++) { const rx = res.bodies.ring.data[(p.from + k) * 3], ry = res.bodies.ring.data[(p.from + k) * 3 + 1]; assert.ok(Math.hypot(p.data[k * 3] - rx, p.data[k * 3 + 1] - ry) < 200, 'escapa'); } });
 });
+
+// ---------- Integridad: fallo a mitad de la escritura y cambio de composición ----------
+test('fallo a mitad de la escritura: lo ya escrito queda registrado y Borrar lo deshace', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]);
+  a.transform.position.setValueAtTime(0, [300, 100]); a.transform.position.setValueAtTime(2, [350, 100]);
+  sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  const tpl = shape(c, 'plantilla', [10, 10], [600, 100]); sel(c, [tpl]); ok(h.call('particles'));
+  tpl.duplicate = () => { throw Error('fallo simulado al duplicar'); };
+  await assert.rejects(Pipeline.simulate(io(h)), /fallo simulado/);
+  assert.ok(a.transform.position.numKeys > 5, 'a se escribió antes del fallo');
+  ok(h.call('clear'));
+  assert.deepStrictEqual(a.transform.position.keys.map((k) => k.t), [0, 2], 'sus claves originales vuelven');
+});
+test('reintento tras el fallo: simular de nuevo funciona y no duplica registros', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  const tpl = shape(c, 'plantilla', [10, 10], [600, 100]); sel(c, [tpl]); ok(h.call('particles'));
+  const original = tpl.duplicate; tpl.duplicate = () => { throw Error('fallo simulado'); };
+  await assert.rejects(Pipeline.simulate(io(h)));
+  tpl.duplicate = original;
+  const out = await Pipeline.simulate(io(h));
+  assert.ok(out.summary.created > 0);
+  ok(h.call('clear'));
+  assert.strictEqual(a.transform.position.numKeys, 0); assert.deepStrictEqual(plain(a.transform.position.value), [300, 100]);
+});
+test('cambiar de composición mientras se calcula: las claves van a la composición simulada', async () => {
+  const { h, c } = setup();
+  const a = shape(c, 'a', [40, 40], [300, 100]); sel(c, [a]); ok(h.call('assign', { mode: 'dynamic' }));
+  const other = h.project.items.addComp('Otra', 640, 360, 1, 2, 25);
+  const base = io(h);
+  await Pipeline.simulate(Object.assign({}, base, { progress(f, m, info) { if (info && info.phase === 'simular') h.project.activeItem = other; } }));
+  assert.ok(a.transform.position.numKeys > 5);
+  assert.strictEqual(other.numLayers, 0, 'la otra composición no se toca');
+});

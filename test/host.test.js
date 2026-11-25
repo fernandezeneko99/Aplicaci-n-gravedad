@@ -314,7 +314,7 @@ test('el archivo de resultado se lee con evalFile y una composición distinta se
   select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
   const f = path.join(os.tmpdir(), 'gravedad-otro.jsx');
   fs.writeFileSync(f, 'Gravedad._incoming = {"compId": 999, "frames": 1, "bodies": {}, "particles": [], "emitters": {}};');
-  assert.match(h.call('apply', { file: f }).error, /no corresponde/);
+  assert.match(h.call('apply', { file: f }).error, /ya no existe/);
 });
 
 test('impulso inicial desde los controles (0° = arriba)', async () => {

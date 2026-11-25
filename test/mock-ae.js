@@ -271,7 +271,7 @@ function createHost(hostDir, reuse) {
   if (reuse) return makeContext(hostDir, reuse.project, reuse.app);
   nextId = 1;
   MockAE.stats = { setValuesAtTimes: 0, pngs: 0, undoOpen: 0, undoGroups: [] };
-  const project = { _items: [], get numItems() { return this._items.length; }, item(i) { return this._items[i - 1]; }, activeItem: null,
+  const project = { _items: [], get numItems() { return this._items.length; }, item(i) { return this._items[i - 1]; }, itemByID(id) { const it = this._items.find((x) => x.id === id); if (!it) throw Error('no existe'); return it; }, activeItem: null,
     items: { addComp(name, w, h, pa, dur, fps) { const c = new CompItem(name, w, h, pa, dur, fps); project._items.push(c); return c; }, addFolder(name) { const f = new FolderItem(name); project._items.push(f); return f; } } };
   MockAE.project = project;
   const app = {
