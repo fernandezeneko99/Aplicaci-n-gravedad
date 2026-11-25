@@ -7,7 +7,7 @@ if (typeof JSON === 'undefined') $.evalFile(new File(new File($.fileName).parent
 $.evalFile(new File(new File($.fileName).parent.fsName + '/geometry.jsx'));
 
 var Gravedad = (function () {
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var TAG = { world: 'gravedad:mundo', force: 'gravedad:fuerza', emitter: 'gravedad:emisor', particle: 'gravedad:particula:' };
   var N = {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
@@ -149,9 +149,76 @@ var Gravedad = (function () {
     return w;
   }
 
+  // ---------- Huella de la escena ----------
+  // Resume todo lo que la simulacion lee (poses de partida, contornos aproximados, controles, mundo y area de trabajo).
+  // Se compara con la guardada al simular para avisar de que la simulacion esta desactualizada.
+  function hashText(text) { var h1 = 5381, h2 = 52711; for (var i = 0; i < text.length; i++) { var ch = text.charCodeAt(i); h1 = ((h1 * 33) ^ ch) % 4294967296; h2 = ((h2 * 31) + ch) % 4294967296; } return h1.toString(36) + h2.toString(36); }
+  function effectValues(l, out) {
+    var fx = parade(l);
+    if (!fx) return;
+    for (var i = 1; i <= fx.numProperties; i++) {
+      var e = fx.property(i);
+      if (e.name.indexOf('Gravedad') !== 0) continue;
+      var p = e.property(1);
+      out.push(e.name, e.enabled, p.numKeys);
+      try {
+        // Un control de capa guarda un indice que cambia al insertar capas: se usa el id de la capa a la que apunta.
+        if (e.matchName === 'ADBE Layer Control') { var ix = Math.round(p.value), cc = l.containingComp; out.push(ix >= 1 && ix <= cc.numLayers ? 'id' + cc.layer(ix).id : 0); }
+        else out.push(p.numKeys ? p.valueAtTime(c0start, false) + ',' + p.valueAtTime(c0end, false) : p.value);
+      } catch (ignore) {}
+    }
+  }
+  var c0start = 0, c0end = 0;
+  function signature(c) {
+    var parts = [VERSION, c.workAreaStart, c.workAreaDuration, c.frameRate, c.width, c.height], i, k;
+    c0start = c.workAreaStart; c0end = c.workAreaStart + c.workAreaDuration;
+    for (i = 1; i <= c.numLayers; i++) {
+      var l = c.layer(i);
+      if (isTagged(l, TAG.particle)) continue;
+      var world = isTagged(l, TAG.world), guideLayer = isTagged(l, TAG.force) || isTagged(l, TAG.emitter), body = !world && !guideLayer && !!control(l, N.type);
+      if (!world && !guideLayer && !body) continue;
+      parts.push(l.id, l.enabled);
+      effectValues(l, parts);
+      if (world) continue;
+      parts.push(round(l.inPoint), round(l.outPoint));
+      var t = Math.max(c.workAreaStart, l.inPoint), q = pose(l, t, rotationGuess(l, t));
+      parts.push(Math.round(q.x * 100), Math.round(q.y * 100), Math.round(q.a * 100), Math.round(q.m[0] * 1e4), Math.round(q.m[1] * 1e4), Math.round(q.m[2] * 1e4), Math.round(q.m[3] * 1e4));
+      if (body) { try { var r = l.sourceRectAtTime(t, false); parts.push(round(r.left), round(r.top), round(r.width), round(r.height)); } catch (e) {} }
+      // Lo que se mueve por su cuenta (fijos animados, fuerzas, emisores) se muestrea a lo largo del area de trabajo.
+      if ((guideLayer || (body && bodyType(l) === 'fixed')) && animated(l)) {
+        for (k = 1; k <= 8; k++) { var tk = c.workAreaStart + c.workAreaDuration * k / 8, s = pose(l, tk); parts.push(Math.round(s.x * 10), Math.round(s.y * 10), Math.round(s.a * 10)); }
+      }
+    }
+    return hashText(parts.join('|'));
+  }
+  // Datos de la ultima simulacion guardados en el comentario del nulo de mundo.
+  function simInfo(c) {
+    var w = find(c, TAG.world), out = {};
+    if (!w) return null;
+    var parts = String(w.comment).split(';');
+    for (var i = 1; i < parts.length; i++) { var kv = parts[i].split('='); if (kv.length === 2) out[kv[0]] = kv[1]; }
+    return out.sig ? { sig: out.sig, frames: +out.frames, start: +out.start, fps: +out.fps, date: out.date || '' } : null;
+  }
+  function selectionInfo(c) {
+    var sel = c.selectedLayers, out = [];
+    for (var i = 0; i < sel.length && i < 40; i++) {
+      var l = sel[i], item = { id: String(l.id), name: l.name, body: isBody(l), role: isTagged(l, TAG.world) ? 'world' : isTagged(l, TAG.force) ? 'force' : isTagged(l, TAG.emitter) ? 'emitter' : isTagged(l, TAG.particle) ? 'particle' : 'layer' };
+      if (item.body) {
+        item.type = bodyType(l); item.shape = Math.round(read(l, N.shape, 1));
+        item.density = read(l, N.density, 1); item.friction = read(l, N.friction, 0.4); item.bounce = read(l, N.bounce, 0.2);
+        item.impulse = read(l, N.impulse, 0); item.impulseAngle = read(l, N.impulseAngle, 0); item.spinStart = read(l, N.spinStart, 0);
+        item.joint = control(l, N.joint) ? Math.round(read(l, N.joint, 4)) : 0;
+      }
+      out.push(item);
+    }
+    return out;
+  }
+
   // ---------- Resumen para el panel ----------
-  function summary(c) {
-    var out = { version: VERSION, comp: { id: c.id, name: c.name, width: c.width, height: c.height, fps: c.frameRate, start: c.workAreaStart, duration: c.workAreaDuration, frames: frameCount(c) }, world: worldSettings(c), dynamic: 0, fixed: 0, off: 0, forces: 0, emitters: 0, particles: 0, simulated: 0, selected: c.selectedLayers.length };
+  function summary(c, deep) {
+    var out = { version: VERSION, comp: { id: c.id, name: c.name, width: c.width, height: c.height, fps: c.frameRate, start: c.workAreaStart, duration: c.workAreaDuration, frames: frameCount(c), time: c.time }, world: worldSettings(c), dynamic: 0, fixed: 0, off: 0, forces: 0, emitters: 0, particles: 0, simulated: 0, selected: c.selectedLayers.length, selection: selectionInfo(c) };
+    var info = simInfo(c);
+    if (info) { out.sim = info; if (deep) out.sim.stale = info.sig !== signature(c); }
     for (var i = 1; i <= c.numLayers; i++) {
       var l = c.layer(i);
       if (isTagged(l, TAG.particle)) { out.particles++; continue; }
@@ -227,10 +294,41 @@ var Gravedad = (function () {
       if (arg.environment === 'space') control(w, N.gravity).property(1).setValue(0);
       if (arg.environment === 'earth') control(w, N.gravity).property(1).setValue(980);
       if (arg.markers !== undefined) addControl(w, 'ADBE Checkbox Control', N.markers, 0).property(1).setValue(arg.markers ? 1 : 0);
+      var nums = { gravity: [N.gravity, -100000, 100000], gravityAngle: [N.angle, -3600, 3600], airDrag: [N.drag, 0, 100], quality: [N.quality, 60, 960] }, flags = { floor: N.floor, sides: N.sides, ceiling: N.ceiling };
+      for (var key in nums) if (nums.hasOwnProperty(key) && typeof arg[key] === 'number' && isFinite(arg[key])) setIfChanged(control(w, nums[key][0]).property(1), Math.max(nums[key][1], Math.min(nums[key][2], arg[key])));
+      for (var f in flags) if (flags.hasOwnProperty(f) && typeof arg[f] === 'boolean') setIfChanged(control(w, flags[f]).property(1), arg[f] ? 1 : 0);
       if (arg.walls !== undefined) { control(w, N.floor).property(1).setValue(arg.walls ? 1 : 0); control(w, N.sides).property(1).setValue(arg.walls ? 1 : 0); control(w, N.ceiling).property(1).setValue(arg.walls && arg.ceiling ? 1 : 0); }
       return summary(c);
     });
   }
+
+  // Escribir una propiedad es lo caro en After: solo se escribe si cambia (y nunca sobre una con claves).
+  // Si el control esta animado, se ajusta la clave en el instante actual de la composicion.
+  function setIfChanged(p, v) { if (p.numKeys) { p.setValueAtTime(comp(true).time, v); return; } if (p.value !== v) p.setValue(v); }
+
+  // ---------- Ajustes de los cuerpos seleccionados (inspector del panel) ----------
+  function setBodies(arg) {
+    var c = comp(), sel = c.selectedLayers, values = arg.values || {}, changed = 0;
+    var map = { density: [N.density, 0.001, 1000], friction: [N.friction, 0, 10], bounce: [N.bounce, 0, 1], impulse: [N.impulse, -100000, 100000], impulseAngle: [N.impulseAngle, -3600, 3600], spinStart: [N.spinStart, -100000, 100000], shape: [N.shape, 1, 3] };
+    if (!sel.length) throw Error('Selecciona capas con f\u00edsica en la l\u00ednea de tiempo.');
+    return undo('Gravedad \u00b7 Ajustar cuerpos', function () {
+      for (var i = 0; i < sel.length; i++) {
+        var l = sel[i];
+        if (!isBody(l)) { if (!values.type) continue; validate(l); makeBody(l, TYPE[values.type] || TYPE.dynamic); }
+        if (values.type && TYPE[values.type]) setIfChanged(control(l, N.type).property(1), TYPE[values.type]);
+        for (var key in map) {
+          if (!map.hasOwnProperty(key) || typeof values[key] !== 'number' || !isFinite(values[key])) continue;
+          var fx = control(l, map[key][0]);
+          if (!fx) fx = addControl(l, key === 'impulseAngle' ? 'ADBE Angle Control' : 'ADBE Slider Control', map[key][0], 0);
+          setIfChanged(fx.property(1), Math.max(map[key][1], Math.min(map[key][2], values[key])));
+        }
+        changed++;
+      }
+      var s = summary(c); s.changed = changed; return s;
+    });
+  }
+
+  function seek(arg) { var c = comp(true), k = Math.max(0, Math.min(frameCount(c) - 1, Math.round(arg.frame))); c.time = frameTime(c, k); return { time: c.time, frame: k }; }
 
   // ---------- Guias dibujadas (flecha y alcance) ----------
   function guide(c, name, tag, color, rangeExpression) {
@@ -360,6 +458,7 @@ var Gravedad = (function () {
     if (kind === 3) { var b = boxOf(l, t); return { shape: { kind: 'circle', x: b.x, y: b.y, r: (b.w + b.h) / 4 } }; }
     if (l instanceof AVLayer || l instanceof ShapeLayer || l instanceof TextLayer) g = GravedadGeometry.masks(l, t);
     if (g && g.skippedMasks) note = 'mascaras';
+    if (g && g.shrunkMasks) note = 'mascara-contraida';
     if (!g && l instanceof ShapeLayer) g = GravedadGeometry.shapeLayer(l, t);
     if (!g && (solidSource(l) || opaqueFootage(l))) g = boxOf(l, t);
     if (!g) {
@@ -478,6 +577,7 @@ var Gravedad = (function () {
         scene.emitters.push(e);
       } catch (err) { scene.problems.push(l.name + ': ' + err.message); }
     }
+    scene.signature = signature(c);
     if (!scene.bodies.length && !scene.emitters.length) throw Error('No hay cuerpos. Selecciona capas y pulsa Din\u00e1mico o Fijo, o crea Part\u00edculas.');
     return scene;
   }
@@ -491,13 +591,20 @@ var Gravedad = (function () {
   }
 
   // ---------- Escritura ----------
-  function removeKeysIn(p, from, to) {
+  function removeKeysIn(p, from, to, keep) {
     if (!p || !p.numKeys) return;
-    for (var i = p.numKeys; i >= 1; i--) { var t = p.keyTime(i); if (t >= from - 1e-4 && t <= to + 1e-4) p.removeKey(i); }
+    for (var i = p.numKeys; i >= 1; i--) {
+      var t = p.keyTime(i);
+      if (t < from - 1e-4 || t > to + 1e-4) continue;
+      // Las claves que caen justo en un fotograma que se va a escribir se sobrescriben: borrarlas es el paso lento.
+      if (keep && keep(t)) continue;
+      p.removeKey(i);
+    }
   }
   function layerById(c, id) { for (var i = 1; i <= c.numLayers; i++) if (String(c.layer(i).id) === String(id)) return c.layer(i); return null; }
   function writeMotion(l, c, rec, rot0, times) {
     var n = rec.data.length / 3, pos = [], rot = [], t = [], i;
+    keysWritten += n * 2;
     var tr = l.property('ADBE Transform Group'), P = tr.property('ADBE Position'), R = tr.property('ADBE Rotate Z');
     var a0 = rec.data[2], three = !P.dimensionsSeparated && P.value.length === 3, z = three ? P.value[2] : 0;
     for (i = 0; i < n; i++) {
@@ -506,20 +613,21 @@ var Gravedad = (function () {
       pos.push(three ? [x, y, z] : [x, y]);
       rot.push(round(rot0 + rec.data[i * 3 + 2] - a0));
     }
-    var end = times[times.length - 1] + 1 / c.frameRate;
+    var end = times[times.length - 1] + 1 / c.frameRate, first = rec.from, last = rec.from + n - 1, fps = c.frameRate, start = c.workAreaStart;
+    var keep = function (tk) { var k = Math.round((tk - start) * fps); return k >= first && k <= last && Math.abs(times[k] - tk) < 1e-4; };
     if (P.dimensionsSeparated) {
       var X = tr.property('ADBE Position_0'), Y = tr.property('ADBE Position_1'), xs = [], ys = [];
       for (i = 0; i < n; i++) { xs.push(pos[i][0]); ys.push(pos[i][1]); }
       X.expressionEnabled = false; Y.expressionEnabled = false;
-      removeKeysIn(X, t[0], end); removeKeysIn(Y, t[0], end);
+      removeKeysIn(X, t[0], end, keep); removeKeysIn(Y, t[0], end, keep);
       X.setValuesAtTimes(t, xs); Y.setValuesAtTimes(t, ys);
     } else {
       if (P.expressionEnabled) P.expressionEnabled = false;
-      removeKeysIn(P, t[0], end);
+      removeKeysIn(P, t[0], end, keep);
       P.setValuesAtTimes(t, pos);
     }
     if (R.expressionEnabled) R.expressionEnabled = false;
-    removeKeysIn(R, t[0], end);
+    removeKeysIn(R, t[0], end, keep);
     R.setValuesAtTimes(t, rot);
   }
   function removeParticles(c) {
@@ -534,7 +642,7 @@ var Gravedad = (function () {
     for (var i = fx.numProperties; i >= 1; i--) if (fx.property(i).name.indexOf('Gravedad \u00b7 ') === 0) fx.property(i).remove();
   }
 
-  var MARK = 'Gravedad \u00b7 choque';
+  var MARK = 'Gravedad \u00b7 choque', keysWritten = 0;
   function removeMarkers(l) {
     var m = l.property('ADBE Marker');
     if (!m) return;
@@ -562,6 +670,7 @@ var Gravedad = (function () {
     for (k = 0; k <= frames; k++) times.push(round(frameTime(c, k) * 1e6) / 1e6);
     return undo('Gravedad \u00b7 Simular', function () {
       var written = 0, created = 0, problems = [];
+      keysWritten = 0;
       removeParticles(c);
       for (var id in res.bodies) {
         if (!res.bodies.hasOwnProperty(id)) continue;
@@ -601,7 +710,12 @@ var Gravedad = (function () {
         dup.moveBefore(tpl);
         created++;
       }
-      var s = summary(c); s.written = written; s.created = created; s.problems = problems; return s;
+      var hadWorld = !!find(c, TAG.world), w = ensureWorld(c), d = new Date();
+      // Si el nulo de mundo se acaba de crear, la huella se recalcula (el mundo forma parte de ella).
+      w.comment = TAG.world;
+      var sig = hadWorld && arg.signature ? arg.signature : signature(c);
+      w.comment = TAG.world + ';sig=' + sig + ';frames=' + frames + ';start=' + c.workAreaStart + ';fps=' + c.frameRate + ';date=' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+      var s = summary(c, true); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
     });
   }
 
@@ -626,6 +740,7 @@ var Gravedad = (function () {
         if (touched) cleared++;
         removeMarkers(l);
       }
+      var w = find(c, TAG.world); if (w) w.comment = TAG.world;
       var s = summary(c); s.cleared = cleared; s.removed = removed; return s;
     });
   }
@@ -640,7 +755,19 @@ var Gravedad = (function () {
   return {
     VERSION: VERSION,
     _incoming: null,
-    inspect: function (raw) { return wrap(function () { return summary(comp(true)); }, raw); },
+    inspect: function (raw) { return wrap(function (arg) { return summary(comp(true), !!arg.deep); }, raw); },
+    bodies: function (raw) { return wrap(setBodies, raw); },
+    // Latido barato (varias veces por segundo): tiempo actual y si cambio la composicion o la seleccion.
+    tick: function () {
+      try {
+        var c = app.project && app.project.activeItem;
+        if (!(c instanceof CompItem)) return '{"ok":true,"data":null}';
+        var sel = c.selectedLayers, ids = [];
+        for (var i = 0; i < sel.length && i < 40; i++) ids.push(sel[i].id);
+        return '{"ok":true,"data":{"comp":' + c.id + ',"time":' + c.time + ',"layers":' + c.numLayers + ',"sel":"' + ids.join(',') + '","start":' + c.workAreaStart + ',"duration":' + c.workAreaDuration + '}}';
+      } catch (e) { return '{"ok":false,"error":"tick"}'; }
+    },
+    seek: function (raw) { return wrap(seek, raw); },
     assign: function (raw) { return wrap(assign, raw); },
     join: function (raw) { return wrap(join, raw); },
     world: function (raw) { return wrap(setWorld, raw); },

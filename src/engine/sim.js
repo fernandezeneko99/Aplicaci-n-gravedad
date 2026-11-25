@@ -60,7 +60,7 @@
     }
     if (p.length < 3) return [];
     // Un trazado que se cruza puede tener área neta casi nula: se usa su casco convexo.
-    if (Math.abs(area(p)) < MIN_AREA) { var h = hull(p); return h.length >= 3 && Math.abs(area(h)) >= MIN_AREA ? h : []; }
+    if (Math.abs(area(p)) < MIN_AREA) { var h = hull(p); if (h.length < 3 || Math.abs(area(h)) < MIN_AREA) return []; h.crossed = true; return h; }
     if (area(p) < 0) p.reverse();
     return p;
   }
@@ -165,7 +165,7 @@
   // Contornos (posiblemente cóncavos, con agujeros) → piezas convexas. Los agujeros se rellenan.
   function decompose(contours, tolerance) {
     var cleaned = [], pieces = [], warnings = [];
-    for (var i = 0; i < contours.length; i++) { var c = clean(contours[i], tolerance === undefined ? 0.75 : tolerance); if (c.length) cleaned.push(c); }
+    for (var i = 0; i < contours.length; i++) { var c = clean(contours[i], tolerance === undefined ? 0.75 : tolerance); if (c.crossed) warnings.push('contorno-cruzado'); if (c.length) cleaned.push(c); }
     cleaned.sort(function (a, b) { return Math.abs(area(b)) - Math.abs(area(a)); });
     var outers = [];
     for (i = 0; i < cleaned.length; i++) {
@@ -188,21 +188,27 @@
     return { pieces: pieces, warnings: warnings };
   }
 
-  // Trazo hueco: cada segmento se convierte en una caja del grosor del trazo.
+  // Trazo: cada segmento se convierte en una caja del grosor del trazo. En las uniones se alarga medio grosor para
+  // cubrir la esquina (como la unión en inglete de After); en los extremos de un trazado abierto no (remate plano).
   function strokeBoxes(paths, thickness) {
-    var out = [], h = Math.max(1, thickness) / 2;
+    var out = [];
     for (var i = 0; i < paths.length; i++) {
-      var pts = paths[i].points, closed = !!paths[i].closed;
-      var n = pts.length, count = closed ? n : n - 1;
+      var pts = paths[i].points, closed = !!paths[i].closed, h = Math.max(1, paths[i].thickness || thickness) / 2;
+      // Puntos casi repetidos (curvas muy densas) se funden para no crear cajas diminutas.
+      var clean = [];
+      for (var c = 0; c < pts.length; c++) if (!clean.length || dist2(clean[clean.length - 1], pts[c]) > 0.25) clean.push(pts[c]);
+      if (closed && clean.length > 2 && dist2(clean[0], clean[clean.length - 1]) <= 0.25) clean.pop();
+      var n = clean.length, count = closed ? n : n - 1;
       for (var s = 0; s < count; s++) {
-        var a = pts[s], b = pts[(s + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy);
+        var a = clean[s], b = clean[(s + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy);
         if (len < 0.5) continue;
-        var ux = dx / len, uy = dy / len, nx = -uy * h, ny = ux * h, ex = ux * h * 0.5, ey = uy * h * 0.5;
-        // Se alarga medio grosor en cada extremo para cerrar las esquinas.
-        out.push([[a[0] - ex + nx, a[1] - ey + ny], [a[0] - ex - nx, a[1] - ey - ny], [b[0] + ex - nx, b[1] + ey - ny], [b[0] + ex + nx, b[1] + ey + ny]].reverse());
+        var ux = dx / len, uy = dy / len, nx = -uy * h, ny = ux * h;
+        var ea = closed || s > 0 ? h : 0, eb = closed || s < count - 1 ? h : 0;
+        var q = [[a[0] - ux * ea + nx, a[1] - uy * ea + ny], [a[0] - ux * ea - nx, a[1] - uy * ea - ny], [b[0] + ux * eb - nx, b[1] + uy * eb - ny], [b[0] + ux * eb + nx, b[1] + uy * eb + ny]];
+        out.push(area(q) < 0 ? q.reverse() : q);
       }
     }
-    return out.map(function (q) { return area(q) < 0 ? q.reverse() : q; });
+    return out;
   }
 
   // ---------- Formas → fixtures ----------
@@ -215,7 +221,10 @@
       return { pieces: [[[x - w, y - hh], [x + w, y - hh], [x + w, y + hh], [x - w, y + hh]]], warnings: [] };
     }
     if (shape.kind === 'stroke') return { pieces: strokeBoxes(shape.paths, shape.thickness), warnings: [] };
-    return decompose(shape.contours || [], shape.tolerance);
+    var res = decompose(shape.contours || [], shape.tolerance);
+    // Relleno con trazo (o máscara expandida): se añaden las cajas del trazo, que sobresalen medio grosor.
+    if (shape.strokes && shape.strokes.paths && shape.strokes.paths.length) res.pieces = res.pieces.concat(strokeBoxes(shape.strokes.paths, shape.strokes.thickness));
+    return res;
   }
 
   function scalePieces(built, s) {
@@ -241,7 +250,11 @@
       var L1 = lines[(i + n - 1) % n], L2 = lines[i], den = L1[2] * L2[3] - L1[3] * L2[2];
       if (Math.abs(den) < 1e-12) return q;
       var t = ((L2[0] - L1[0]) * L2[3] - (L2[1] - L1[1]) * L2[2]) / den;
-      out.push([L1[0] + L1[2] * t, L1[1] + L1[3] * t]);
+      var v = [L1[0] + L1[2] * t, L1[1] + L1[3] * t], o = q[i], mx = v[0] - o[0], my = v[1] - o[1], m = Math.sqrt(mx * mx + my * my);
+      // En una punta afilada el desplazamiento crece mucho (d / sin(ángulo/2)) y la piel redonda no lo recupera:
+      // la punta se mete solo la piel, para que el borde siga llegando hasta el pico visible.
+      if (m > d * 1.5) v = [o[0] + mx / m * d, o[1] + my / m * d];
+      out.push(v);
     }
     return Math.abs(area(out)) > Math.abs(area(q)) * 0.25 && area(out) > 0 ? out : q;
   }
@@ -430,7 +443,7 @@
         if (k === frames - 1) { k = frames; break; }
         drive(k);
         current = k + 1;
-        for (var s = 0; s < sub; s++) { applyForces(k); world.step(dt, 10, 8); }
+        for (var s = 0; s < sub; s++) { applyForces(k); world.step(dt, 8, 3); }
         for (i = 0; i < live.length; i++) {
           var q = live[i].body.getPosition();
           if (!isFinite(q.x) || !isFinite(q.y)) throw Error('La simulación se volvió inestable. Revisa tamaños y fuerzas extremas.');

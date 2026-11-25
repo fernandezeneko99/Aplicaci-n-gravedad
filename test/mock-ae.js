@@ -42,7 +42,7 @@ class Property extends PropertyBase {
   _check(v) { if (Array.isArray(this._value) && (!Array.isArray(v) || v.some((x) => typeof x !== 'number' || !isFinite(x)))) throw Error(this.name + ': valor no válido ' + JSON.stringify(v)); if (typeof this._value === 'number' && (typeof v !== 'number' || !isFinite(v))) throw Error(this.name + ': valor no válido ' + v); }
   setValueAtTime(t, v) { this._check(v); const i = this.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6); if (i >= 0) this.keys[i].v = clone(v); else { this.keys.push({ t, v: clone(v) }); this.keys.sort((a, b) => a.t - b.t); } }
   setValuesAtTimes(ts, vs) { if (ts.length !== vs.length) throw Error('longitudes distintas'); MockAE.stats.setValuesAtTimes++; for (let i = 0; i < ts.length; i++) this.setValueAtTime(ts[i], vs[i]); }
-  removeKey(i) { if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); this.keys.splice(i - 1, 1); }
+  removeKey(i) { if (i < 1 || i > this.keys.length) throw Error('removeKey fuera de rango'); MockAE.stats.removeKey = (MockAE.stats.removeKey || 0) + 1; this.keys.splice(i - 1, 1); }
   get dimensionsSeparated() { return this.dimensionsSeparatedValue; }
   set dimensionsSeparated(v) { this.dimensionsSeparatedValue = v; }
   setPropertyParameters(items) { if (MockAE.failDropdown) throw Error('No se puede'); if (this.matchName !== 'ADBE Dropdown Control-0001') throw Error('no es menú'); this.items = items; return this; }
@@ -78,11 +78,16 @@ const factories = {
   'ADBE Vector Graphic - Fill': (parent) => { const g = new Group('ADBE Vector Graphic - Fill', 'Fill', parent); prop(g, 'ADBE Vector Fill Color', 'Color', [1, 0, 0]); prop(g, 'ADBE Vector Fill Opacity', 'Opacity', 100); return g; },
   'ADBE Vector Graphic - Stroke': (parent) => { const g = new Group('ADBE Vector Graphic - Stroke', 'Stroke', parent); prop(g, 'ADBE Vector Stroke Color', 'Color', [1, 1, 1]); prop(g, 'ADBE Vector Stroke Opacity', 'Opacity', 100); prop(g, 'ADBE Vector Stroke Width', 'Stroke Width', 2); g.add(new Group('ADBE Vector Stroke Dashes', 'Dashes', g)); return g; },
   'ADBE Vector Filter - Repeater': (parent) => new Group('ADBE Vector Filter - Repeater', 'Repeater', parent),
+  'ADBE Vector Filter - Trim': (parent) => new Group('ADBE Vector Filter - Trim', 'Trim Paths', parent),
+  'ADBE Vector Filter - Merge': (parent) => { const g = new Group('ADBE Vector Filter - Merge', 'Merge Paths', parent); prop(g, 'ADBE Vector Merge Type', 'Mode', 1); return g; },
+  'ADBE Vector Graphic - G-Fill': (parent) => { const g = new Group('ADBE Vector Graphic - G-Fill', 'Gradient Fill', parent); prop(g, 'ADBE Vector Fill Opacity', 'Opacity', 100); return g; },
+  'ADBE Vector Graphic - G-Stroke': (parent) => { const g = new Group('ADBE Vector Graphic - G-Stroke', 'Gradient Stroke', parent); prop(g, 'ADBE Vector Stroke Opacity', 'Opacity', 100); prop(g, 'ADBE Vector Stroke Width', 'Stroke Width', 2); return g; },
+  'ADBE Vector Shape - Star': (parent) => { const g = new Group('ADBE Vector Shape - Star', 'Polystar', parent); prop(g, 'ADBE Vector Star Type', 'Type', 1); prop(g, 'ADBE Vector Star Points', 'Points', 5); prop(g, 'ADBE Vector Star Position', 'Position', [0, 0]); prop(g, 'ADBE Vector Star Rotation', 'Rotation', 0); prop(g, 'ADBE Vector Star Inner Radius', 'Inner Radius', 50); prop(g, 'ADBE Vector Star Outer Radius', 'Outer Radius', 100); prop(g, 'ADBE Vector Star Inner Roundess', 'Inner Roundness', 0); prop(g, 'ADBE Vector Star Outer Roundess', 'Outer Roundness', 0); return g; },
   'ADBE Vector Stroke Dash 1': (parent) => new Property('ADBE Vector Stroke Dash 1', 'Dash', 10, parent),
-  'ADBE Mask Atom': (parent) => { const g = new Group('ADBE Mask Atom', 'Mask', parent); g.maskMode = 'ADD'; g.inverted = false; prop(g, 'ADBE Mask Shape', 'Mask Path', new Shape()); return g; }
+  'ADBE Mask Atom': (parent) => { const g = new Group('ADBE Mask Atom', 'Mask', parent); g.maskMode = 'ADD'; g.inverted = false; prop(g, 'ADBE Mask Shape', 'Mask Path', new Shape()); prop(g, 'ADBE Mask Offset', 'Mask Expansion', 0); return g; }
 };
 
-const MaskMode = { NONE: 'NONE', ADD: 'ADD', SUBTRACT: 'SUBTRACT' };
+const MaskMode = { NONE: 'NONE', ADD: 'ADD', SUBTRACT: 'SUBTRACT', INTERSECT: 'INTERSECT' };
 
 // --- Capas ---
 class Layer {
@@ -171,6 +176,8 @@ class CompItem extends Item {
       addShape() { const l = new ShapeLayer(c, 'Shape Layer'); c._layers.unshift(l); return l; },
       addSolid(color, name, w, h) { const src = new FootageItem(name, w, h, new SolidSource(color)); const l = new AVLayer(c, name, { source: src }); l.property('ADBE Transform Group').property('ADBE Anchor Point')._value = [w / 2, h / 2]; c._layers.unshift(l); return l; },
       addText(text) { const l = new TextLayer(c, text); l.source = null; c._layers.unshift(l); return l; },
+      // Precomposición: la capa usa una CompItem como fuente; alphaFn describe su contenido en píxeles de la precomp.
+      addPrecomp(comp) { const l = new AVLayer(c, comp.name, { source: comp }); l.property('ADBE Transform Group').property('ADBE Anchor Point')._value = [comp.width / 2, comp.height / 2]; c._layers.unshift(l); return l; },
       add(item) { const l = new AVLayer(c, item.name, { source: item }); l.property('ADBE Transform Group').property('ADBE Anchor Point')._value = [item.width / 2, item.height / 2]; c._layers.unshift(l); return l; }
     };
   }
@@ -182,7 +189,7 @@ class CompItem extends Item {
     const w = this.width, h = this.height, alpha = new Uint8Array(w * h);
     for (const l of this._layers) {
       if (!l.enabled) continue;
-      const m = MockAE.world(l, t), inv = MockAE.invert(m), fn = l.source && l.source.alphaFn, r = l.sourceRectAtTime(t);
+      const m = MockAE.world(l, t), inv = MockAE.invert(m), fn = l._alphaFn || (l.source && l.source.alphaFn), r = l.sourceRectAtTime(t);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         const p = MockAE.apply(inv, [x + 0.5, y + 0.5]);
         const inside = fn ? fn(p[0], p[1]) : (p[0] >= r.left && p[0] < r.left + r.width && p[1] >= r.top && p[1] < r.top + r.height);

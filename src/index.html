@@ -9,41 +9,91 @@
 <body>
 <main>
  <header class="top">
-  <button id="apple" class="logo" title="Gravedad · clic derecho para recargar el panel"><img src="assets/logo.svg" alt=""><span>Gravedad</span></button>
+  <button id="apple" class="logo" data-hint="Gravedad · clic para actualizar, clic derecho para recargar el panel."><img src="assets/logo.svg" alt=""><span>Gravedad</span></button>
   <section class="world" aria-label="Mundo">
-   <label class="switch" data-hint="Tierra: gravedad terrestre. Espacio: sin gravedad; las fuerzas siguen activas."><input id="environment" type="checkbox" role="switch" aria-label="Espacio sin gravedad"><span class="side off"><img src="assets/earth.svg" alt=""><span>Tierra</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/space.svg" alt=""><span>Espacio</span></span></label>
-   <label class="switch" data-hint="Con paredes, el suelo y los lados de la composición contienen los objetos."><input id="walls" type="checkbox" role="switch" aria-label="Bordes de la composición como paredes" checked><span class="side off"><img src="assets/open.svg" alt=""><span>Sin paredes</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/walls.svg" alt=""><span>Paredes</span></span></label>
+   <label class="switch" data-hint="Tierra: gravedad terrestre (980 px/s²). Espacio: sin gravedad; las fuerzas siguen activas. Más planetas en Ajustes del mundo."><input id="environment" type="checkbox" role="switch" aria-label="Espacio sin gravedad"><span class="side off"><img src="assets/earth.svg" alt=""><span>Tierra</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/space.svg" alt=""><span>Espacio</span></span></label>
+   <label class="switch" data-hint="Con paredes, el suelo y los lados de la composición contienen los objetos. Elige cada borde por separado en Ajustes del mundo."><input id="walls" type="checkbox" role="switch" aria-label="Bordes de la composición como paredes" checked><span class="side off"><img src="assets/open.svg" alt=""><span>Sin paredes</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/walls.svg" alt=""><span>Paredes</span></span></label>
   </section>
  </header>
 
+ <p id="compChip" class="chip" hidden></p>
+
  <div class="cards">
-  <button id="dynamic" data-hint="Selecciona capas: caerán y chocarán. El contorno se detecta solo (formas, texto, PNG con alfa, precomposiciones)."><img class="art" src="assets/dynamic.svg" alt=""><strong>Dinámico</strong></button>
+  <button id="dynamic" data-hint="Selecciona capas: caerán y chocarán. El contorno se detecta solo (formas, texto, PNG con alfa, vídeo, precomposiciones)."><img class="art" src="assets/dynamic.svg" alt=""><strong>Dinámico</strong></button>
   <button id="fixed" data-hint="Selecciona capas que no caen: suelos, rampas, recipientes. Si están animadas, empujan siguiendo su animación."><img class="art" src="assets/fixed.svg" alt=""><strong>Fijo</strong></button>
-  <button id="force" data-hint="Crea un ventilador: gira la flecha para cambiar la dirección. Intensidad y alcance en Controles de efectos. Alt+clic: atractor."><img class="art" src="assets/force.svg" alt=""><strong>Fuerza</strong></button>
-  <button id="particles" data-hint="Crea un emisor. Si seleccionas una capa, se usa como forma de las partículas. Ritmo, cantidad y tamaño en Controles de efectos."><img class="art" src="assets/particles.svg" alt=""><strong>Partículas</strong></button>
+  <button id="force" data-hint="Crea un ventilador: gira la flecha para orientarlo. Alt+clic: atractor (intensidad negativa = repulsor)."><img class="art" src="assets/force.svg" alt=""><strong>Fuerza</strong></button>
+  <button id="particles" data-hint="Crea un emisor. Si seleccionas capas, se usan como formas de las partículas (varias = al azar, ideal para confeti)."><img class="art" src="assets/particles.svg" alt=""><strong>Partículas</strong></button>
  </div>
 
- <button id="simulate" data-hint="Calcula la física en el área de trabajo y la escribe como fotogramas clave de Posición y Rotación. Ctrl+Z la deshace."><img class="art" src="assets/bake.svg" alt=""><span class="bake-text"><strong>Simular <span id="simState"></span></strong><span class="meter"><span id="progress"></span></span></span></button>
-
- <div class="row extras">
-  <div class="join" data-hint="Una capa: queda colgada de su punto de anclaje. Dos capas: se unen por sus anclajes. La unión vive en la primera capa seleccionada."><button id="join" class="small">Unir capas</button><select id="jointType" aria-label="Tipo de unión"><option value="pivot">Pivote</option><option value="distance">Barra</option><option value="spring">Muelle</option></select></div>
-  <label class="check small" data-hint="Añade un marcador «Gravedad · choque» en cada golpe fuerte: útil para sincronizar sonidos."><input id="markers" type="checkbox"> Marcadores al chocar</label>
+ <div class="join" data-hint="Una capa: queda colgada de su punto de anclaje (péndulo). Dos capas: se unen por sus puntos de anclaje.">
+  <button id="join" class="small">Unir capas</button>
+  <select id="jointType" aria-label="Tipo de unión"><option value="pivot">Pivote</option><option value="distance">Barra rígida</option><option value="spring">Muelle</option></select>
  </div>
 
- <div class="row">
-  <button id="clear" class="small" data-hint="Quita las claves de la simulación y las partículas generadas; las capas vuelven a su pose de partida.">Borrar simulación</button>
-  <button id="preview" class="small" aria-pressed="false" data-hint="Muestra en el panel la última simulación.">Vista previa</button>
- </div>
+ <section class="sim" aria-label="Simulación">
+  <button id="simulate" data-hint="Calcula la física en el área de trabajo y la escribe como fotogramas clave de Posición y Rotación. Ctrl/Cmd+Z la deshace."><img class="art" src="assets/bake.svg" alt=""><span class="bake-text"><strong id="simLabel">Simular</strong><span id="simState">Área de trabajo</span></span></button>
+  <div class="meter-box" data-hint="Medidor de fotogramas: verde = simulado, naranja rayado = la escena cambió después de simular, rojo = calculando. Las marcas blancas son choques. Clic o arrastra para mover el tiempo de After.">
+   <canvas id="meter" height="44" aria-label="Medidor de fotogramas"></canvas>
+   <div class="meter-labels"><span id="meterStart">0</span><span id="meterInfo"></span><span id="meterEnd">0</span></div>
+  </div>
+  <div class="row">
+   <button id="clear" class="small" data-hint="Quita las claves de la simulación, los marcadores y las partículas generadas; las capas vuelven a su pose de partida.">Borrar simulación</button>
+   <button id="preview" class="small" aria-pressed="false" data-hint="Muestra en el panel la última simulación con sus contornos de colisión.">Vista previa</button>
+  </div>
+ </section>
 
  <figure id="viewer" hidden>
   <canvas id="canvas" width="640" height="360" aria-label="Vista previa de la simulación"></canvas>
   <div class="scrub"><button id="play" class="small" aria-label="Reproducir">▶</button><input id="frame" type="range" min="0" max="0" value="0" aria-label="Fotograma"><output id="frameLabel">0</output></div>
  </figure>
 
- <p id="scene" class="scene"></p>
- <p id="status" role="status">Abre una composición y selecciona capas para empezar.</p>
+ <p id="status" role="status" aria-live="polite">Abre una composición y selecciona capas para empezar.</p>
  <ul id="warnings" class="warnings"></ul>
- <small class="version">Gravedad · <span id="version"></span></small>
+
+ <details id="inspector" class="panel-section">
+  <summary><span>Capas seleccionadas</span><small id="selInfo">ninguna</small></summary>
+  <div class="section-body">
+   <p id="selEmpty" class="hint">Selecciona capas con física en la línea de tiempo para ajustarlas aquí. Los cambios se aplican a todas las seleccionadas.</p>
+   <div id="selControls" hidden>
+    <div class="field"><span class="label">Tipo</span><div class="seg" data-key="type"><button data-value="dynamic">Dinámico</button><button data-value="fixed">Fijo</button><button data-value="off">Desactivado</button></div></div>
+    <div class="field"><span class="label">Forma</span><div class="seg" data-key="shape"><button data-value="1" data-hint="Contorno real: trazados, máscaras, texto o alfa.">Automática</button><button data-value="2">Caja</button><button data-value="3">Círculo</button></div></div>
+    <div class="field"><span class="label">Material</span><div class="presets" id="materials"></div></div>
+    <label class="slider"><span class="label">Densidad <small>masa relativa</small></span><input type="range" data-key="density" min="0.05" max="10" step="0.05"><input type="number" data-key="density" min="0.001" max="1000" step="0.1"></label>
+    <label class="slider"><span class="label">Fricción <small>0 = hielo</small></span><input type="range" data-key="friction" min="0" max="1.5" step="0.01"><input type="number" data-key="friction" min="0" max="10" step="0.05"></label>
+    <label class="slider"><span class="label">Rebote <small>1 = sin pérdida</small></span><input type="range" data-key="bounce" min="0" max="1" step="0.01"><input type="number" data-key="bounce" min="0" max="1" step="0.05"></label>
+    <details class="sub"><summary>Impulso inicial</summary>
+     <label class="slider"><span class="label">Velocidad <small>px/s</small></span><input type="range" data-key="impulse" min="0" max="3000" step="10"><input type="number" data-key="impulse" step="10"></label>
+     <label class="slider"><span class="label">Dirección <small>0° = arriba</small></span><input type="range" data-key="impulseAngle" min="-180" max="180" step="1"><input type="number" data-key="impulseAngle" step="5"></label>
+     <label class="slider"><span class="label">Giro <small>°/s</small></span><input type="range" data-key="spinStart" min="-1080" max="1080" step="10"><input type="number" data-key="spinStart" step="10"></label>
+    </details>
+   </div>
+  </div>
+ </details>
+
+ <details id="worldPanel" class="panel-section">
+  <summary><span>Ajustes del mundo</span><small id="worldInfo">Tierra · paredes</small></summary>
+  <div class="section-body">
+   <div class="field"><span class="label">Gravedad</span><div class="presets" id="planets"></div></div>
+   <label class="slider"><span class="label">Intensidad <small>px/s²</small></span><input type="range" data-world="gravity" min="0" max="3000" step="10"><input type="number" data-world="gravity" step="10"></label>
+   <label class="slider"><span class="label">Dirección <small>0° = abajo</small></span><input type="range" data-world="gravityAngle" min="-180" max="180" step="1"><input type="number" data-world="gravityAngle" step="5"></label>
+   <div class="field"><span class="label">Bordes</span><div class="checks"><label><input type="checkbox" data-world="floor"> Suelo</label><label><input type="checkbox" data-world="sides"> Lados</label><label><input type="checkbox" data-world="ceiling"> Techo</label></div></div>
+   <label class="slider"><span class="label">Resistencia del aire</span><input type="range" data-world="airDrag" min="0" max="5" step="0.05"><input type="number" data-world="airDrag" min="0" max="100" step="0.1"></label>
+   <div class="field"><span class="label">Calidad</span><div class="seg" data-world-seg="quality"><button data-value="120" data-hint="Más rápida; puede atravesar objetos finos a mucha velocidad.">Rápida</button><button data-value="240">Equilibrada</button><button data-value="480">Alta</button><button data-value="960" data-hint="Para pilas altas y objetos muy finos. Tarda unas 4 veces más.">Máxima</button></div></div>
+   <div class="field"><span class="label">Extras</span><div class="checks"><label data-hint="Añade un marcador «Gravedad · choque» en cada golpe fuerte: útil para sincronizar sonidos."><input type="checkbox" data-world="markers"> Marcadores al chocar</label></div></div>
+  </div>
+ </details>
+
+ <details id="help" class="panel-section">
+  <summary><span>Guía rápida</span><small>4 pasos</small></summary>
+  <ol class="section-body guide">
+   <li><b>Elige capas</b> y pulsa <b>Dinámico</b> (caen) o <b>Fijo</b> (suelos, rampas). El contorno real se detecta solo.</li>
+   <li><b>Ajusta</b> material, rebote o impulso en <i>Capas seleccionadas</i>, o en Controles de efectos de cada capa.</li>
+   <li><b>Simular</b> calcula el área de trabajo. El medidor muestra el avance; puedes cancelar en cualquier momento.</li>
+   <li><b>Cambia</b> lo que quieras: si el medidor se pone naranja, vuelve a simular. Ctrl/Cmd+Z deshace la simulación.</li>
+  </ol>
+ </details>
+
+ <small class="version">Gravedad · <span id="version"></span> · física Box2D (planck.js)</small>
 </main>
 <script>
  // CEP con Node expone module/exports: se ocultan para que los motores se registren como globales del panel.
@@ -54,6 +104,7 @@
 <script src="engine/scene.js"></script>
 <script src="engine/pipeline.js"></script>
 <script>window.module = window.__cepModule.module; window.exports = window.__cepModule.exports;</script>
+<script src="meter.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

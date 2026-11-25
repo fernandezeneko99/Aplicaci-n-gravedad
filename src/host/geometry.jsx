@@ -92,24 +92,35 @@ var GravedadGeometry = (function () {
     for (var i = 0; i < paths.length; i++) total += paths[i].points.length;
     if (total > LIMIT) return null;
     if (!fill && stroke > 0) return { kind: 'stroke', paths: paths, thickness: stroke };
-    if (shapes === 1 && circles.length === 1) return { kind: 'circle', x: circles[0].c[0], y: circles[0].c[1], r: circles[0].r };
+    // El trazo sobresale medio grosor por fuera del relleno: forma parte del borde visible.
+    if (shapes === 1 && circles.length === 1) return { kind: 'circle', x: circles[0].c[0], y: circles[0].c[1], r: circles[0].r + stroke / 2 };
     var contours = [];
     for (i = 0; i < paths.length; i++) if (paths[i].points.length >= 3) contours.push(paths[i].points);
-    return contours.length ? { kind: 'contours', contours: contours } : null;
+    if (!contours.length) return null;
+    var out = { kind: 'contours', contours: contours };
+    if (stroke > 0) out.strokes = { paths: paths, thickness: stroke };
+    return out;
   }
 
   // Mascaras en modo Anadir: definen el contorno de cualquier capa AV.
   function masks(layer, t) {
-    var parade = layer.property('ADBE Mask Parade'), out = [], skipped = 0;
+    var parade = layer.property('ADBE Mask Parade'), out = [], skipped = 0, grow = [], shrunk = 0;
     if (!parade) return null;
     for (var i = 1; i <= parade.numProperties; i++) {
       var mask = parade.property(i);
       if (mask.maskMode === MaskMode.NONE) continue;
       if (mask.maskMode !== MaskMode.ADD || mask.inverted) { skipped++; continue; }
       var f = flatten(mask.property('ADBE Mask Shape').valueAtTime(t, false), [1, 0, 0, 1, 0, 0]);
-      if (f.points.length >= 3) out.push(f.points);
+      if (f.points.length < 3) continue;
+      out.push(f.points);
+      // Expansion de mascara: una banda del doble de ancho centrada en el trazado amplia el borde hacia fuera.
+      var e = val(mask, 'ADBE Mask Offset', t, 0);
+      if (e > 0.25) grow.push({ points: f.points, closed: true, thickness: e * 2 }); else if (e < -0.25) shrunk++;
     }
-    return out.length ? { kind: 'contours', contours: out, skippedMasks: skipped } : null;
+    if (!out.length) return null;
+    var res = { kind: 'contours', contours: out, skippedMasks: skipped, shrunkMasks: shrunk };
+    if (grow.length) res.strokes = { paths: grow, thickness: 0 };
+    return res;
   }
 
   return { shapeLayer: shapeLayer, masks: masks, mul: mul, point: point };

@@ -40,7 +40,12 @@
       var det = Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]);
       return { kind: 'stroke', thickness: layerShape.thickness * Math.sqrt(det), paths: layerShape.paths.map(function (p) { return { points: map(p.points), closed: !!p.closed }; }) };
     }
-    return { kind: 'poly', contours: layerShape.contours.map(map) };
+    var poly = { kind: 'poly', contours: layerShape.contours.map(map) };
+    if (layerShape.strokes) {
+      var k2 = Math.sqrt(Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]));
+      poly.strokes = { thickness: layerShape.strokes.thickness * k2, paths: layerShape.strokes.paths.map(function (p) { return { points: map(p.points), closed: !!p.closed, thickness: p.thickness ? p.thickness * k2 : undefined }; }) };
+    }
+    return poly;
   }
 
   // Contornos del alfa (píxeles del PNG) → coordenadas de capa.

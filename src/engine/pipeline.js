@@ -38,6 +38,8 @@
     return who + ': ' + w.code;
   }
 
+  function now() { return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(); }
+
   async function simulate(io) {
     var warnings = [];
     io.progress(0, 'Leyendo la escena…');
@@ -47,29 +49,43 @@
     host.bodies.forEach(function (b) {
       names[b.id] = b.name;
       if (b.note === 'alfa') warnings.push(b.name + ': no se pudo leer su alfa; colisiona con su caja.');
+      if (b.note === 'mascara-contraida') warnings.push(b.name + ': la expansión negativa de máscara no se aplica a la colisión; colisiona con el trazado de la máscara.');
       if (b.note === 'mascaras') warnings.push(b.name + ': solo se usan las máscaras en modo Añadir sin invertir.');
       if (b.note === 'padre-animado') warnings.push(b.name + ': su padre está animado; al simular se quita el padre.');
     });
+    (host.emitters || []).forEach(function (e) { e.templates.forEach(function (t) { if (t.note === 'alfa') warnings.push(t.name + ' (partícula): no se pudo leer su alfa; colisiona con su caja.'); }); });
     try {
-      if (host.bodies.some(function (b) { return b.raster; }) || (host.emitters || []).some(function (e) { return e.raster; })) io.progress(0.02, 'Detectando contornos…');
+      if (host.bodies.some(function (b) { return b.raster; }) || (host.emitters || []).some(function (e) { return e.templates.some(function (t) { return t.raster; }); })) io.progress(0.02, 'Detectando contornos…');
       await resolveRasters(host, io, warnings);
     } finally {
       try { await io.call('cleanup', {}); } catch (ignore) {}
     }
-    var scene = Scene.build(host), run = Sim.create(scene), state, load = scene.bodies.length + scene.emitters.reduce(function (n, e) { return n + (e.max || 0); }, 0) + 1, chunk = Math.max(1, Math.round(4000 / load));
+    // Protección de memoria: cada cuerpo guarda 3 números por fotograma. Más de ~4 millones de muestras no cabe con soltura.
+    var bodiesTotal = host.bodies.length + (host.emitters || []).reduce(function (n, e) { return n + (e.max || 0); }, 0), samples = bodiesTotal * host.frames;
+    if (samples > 4e6) throw Error('Escena demasiado grande: ' + bodiesTotal + ' cuerpos × ' + host.frames + ' fotogramas. Acorta el área de trabajo, baja el Máximo de partículas o divide la escena en varias composiciones.');
+    if (bodiesTotal > 600) warnings.push(bodiesTotal + ' cuerpos: la simulación y la escritura de claves pueden tardar. El medidor muestra el tiempo restante y puedes cancelar.');
+    // Por tramos de tiempo (no de fotogramas): el panel y After siguen respondiendo aunque la escena sea enorme.
+    var scene = Scene.build(host), run = Sim.create(scene), state, began = now(), budget = io.budget || 25;
+    io.progress(0.05, 'Simulando…', { phase: 'simular', frame: 0, frames: scene.frames });
     do {
-      state = run.step(chunk);
-      io.progress(0.05 + 0.85 * state.frame / state.frames, 'Simulando · fotograma ' + state.frame + ' de ' + state.frames);
+      if (io.cancelled && io.cancelled()) throw Error('Simulación cancelada. Las capas no se han modificado.');
+      var slice = now();
+      var count = 0, maxFrames = io.maxFramesPerSlice || Infinity;
+      do { state = run.step(1); count++; } while (!state.done && now() - slice < budget && count < maxFrames);
+      var elapsed = (now() - began) / 1000, rate = state.frame / Math.max(1e-3, elapsed), eta = (state.frames - state.frame) / Math.max(1e-3, rate);
+      io.progress(0.05 + 0.85 * state.frame / state.frames, 'Simulando · fotograma ' + state.frame + ' de ' + state.frames, { phase: 'simular', frame: state.frame, frames: state.frames, fps: rate, eta: eta });
       if (io.yield) await io.yield();
     } while (!state.done);
     var result = run.result();
     result.warnings.forEach(function (w) { warnings.push(describeWarning(w, names)); });
-    io.progress(0.92, 'Escribiendo fotogramas clave…');
+    if (io.cancelled && io.cancelled()) throw Error('Simulación cancelada. Las capas no se han modificado.');
+    io.progress(0.92, 'Escribiendo fotogramas clave en After…', { phase: 'escribir' });
     var data = Scene.payload(host, result), file = await io.writeText('resultado-' + host.compId + '.jsx', Scene.script(data));
-    var summary = await io.call('apply', { file: file });
+    var summary = await io.call('apply', { file: file, signature: host.signature });
     (summary.problems || []).forEach(function (p) { warnings.push(p); });
-    io.progress(1, 'Listo');
-    return { summary: summary, warnings: warnings, host: host, scene: scene, result: result };
+    var stats = { seconds: (now() - began) / 1000, frames: scene.frames, bodies: scene.bodies.length, particles: result.particles.length };
+    io.progress(1, 'Listo', { phase: 'listo' });
+    return { summary: summary, warnings: warnings, host: host, scene: scene, result: result, stats: stats };
   }
 
   return { simulate: simulate, resolveRasters: resolveRasters };

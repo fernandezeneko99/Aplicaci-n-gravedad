@@ -55,8 +55,7 @@ body.busy .logo img{animation:fall 1s ease-in infinite}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.9rem}
 .small{padding:.45rem .6rem;font-size:.82rem;font-weight:650;background:#e5dfed;border-radius:.9rem;box-shadow:0 .22rem var(--shadow)}
 .small[aria-pressed=true]{background:#c6b1ef}
-.extras{margin-top:1rem}
-.join{display:grid;grid-template-columns:1fr auto;border:var(--line) solid var(--ink);border-radius:.9rem;box-shadow:0 .22rem var(--shadow);overflow:hidden;background:#bde6ce}
+.join{display:grid;grid-template-columns:1fr auto;margin-top:.8rem;border:var(--line) solid var(--ink);border-radius:.9rem;box-shadow:0 .22rem var(--shadow);overflow:hidden;background:#bde6ce}
 .join .small{border:0;border-radius:0;box-shadow:none;background:transparent}
 .join .small:hover{transform:none;background:#a9dcbf}
 .join select{font:inherit;font-size:.78rem;font-weight:650;color:var(--ink);background:#e5dfed;border:0;border-left:var(--line) solid var(--ink);padding:0 .4rem;cursor:pointer}
@@ -84,3 +83,57 @@ body.busy .logo img{animation:fall 1s ease-in infinite}
 /* Paneles estrechos: dos tarjetas por fila; muy estrechos, los interruptores bajo la manzana. */
 @media (max-width:330px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:270px){.top{grid-template-columns:1fr;justify-items:center}.world{justify-content:center}}
+
+/* ---------- 1.1: composición, simulación, medidor, secciones ---------- */
+.chip{margin:-.4rem 0 .9rem;font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip b{color:var(--text);font-weight:650}
+.sim{margin-top:1rem}
+.sim #simulate{margin-top:0}
+.bake-text{min-width:0}
+#simState{display:block;font-weight:600;font-size:.76rem;color:#7a5146;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#simulate.done{background:#c8eac0}
+#simulate.done #simState{color:#3f6b3c}
+#simulate.stale{background:#ffd9a8}
+#simulate.running{background:#ff9f8a}
+#simulate.running .art{animation:fall 1s ease-in infinite}
+.meter-box{margin-top:.7rem;padding:.35rem .45rem .3rem;border:var(--line) solid var(--shadow);border-radius:.9rem;background:#16141b}
+#meter{display:block;width:100%;height:44px;cursor:ew-resize;touch-action:none}
+.meter-labels{display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:.1rem}
+#meterInfo{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sim .row{margin-top:.7rem}
+
+.panel-section{margin-top:.7rem;border:var(--line) solid var(--shadow);border-radius:1rem;background:#16141b;overflow:hidden}
+.panel-section>summary{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.6rem .85rem;cursor:pointer;font-weight:700;font-size:.88rem;list-style:none}
+.panel-section>summary::-webkit-details-marker{display:none}
+.panel-section>summary::before{content:'▸';color:var(--muted);margin-right:.1rem;transition:transform .15s}
+.panel-section[open]>summary::before{transform:rotate(90deg)}
+.panel-section>summary span{flex:1}
+.panel-section>summary small{font-weight:500;color:var(--muted);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.section-body{padding:.1rem .85rem .85rem;display:grid;gap:.65rem}
+.hint{margin:0;font-size:.8rem;color:var(--muted);line-height:1.45}
+.field{display:grid;gap:.3rem}
+.label{font-size:.76rem;font-weight:650;color:var(--text)}
+.label small{font-weight:400;color:var(--muted);margin-left:.25rem}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:.12rem solid var(--shadow);border-radius:.7rem;overflow:hidden}
+.seg button,.presets button{border:0;border-radius:0;box-shadow:none;background:#25212b;color:var(--text);font-size:.74rem;font-weight:600;padding:.4rem .2rem}
+.seg button+button{border-left:.12rem solid var(--shadow)}
+.seg button:hover,.presets button:hover{transform:none;background:#332d3b}
+.seg button[aria-pressed=true]{background:#c6b1ef;color:var(--ink)}
+.presets{display:flex;flex-wrap:wrap;gap:.35rem}
+.presets button{border-radius:2rem;padding:.3rem .65rem;border:.12rem solid var(--shadow)}
+.presets button[aria-pressed=true]{background:#bde6ce;color:var(--ink);border-color:#bde6ce}
+.slider{display:grid;grid-template-columns:1fr 4.6rem;grid-template-rows:auto auto;column-gap:.6rem;row-gap:.15rem;align-items:center}
+.slider .label{grid-column:1/3}
+.slider input[type=range]{width:100%;accent-color:#e9806a;margin:0}
+.slider input[type=number]{width:100%;font:inherit;font-size:.78rem;color:var(--text);background:#25212b;border:.12rem solid var(--shadow);border-radius:.5rem;padding:.2rem .35rem;font-variant-numeric:tabular-nums}
+.slider input[type=number]:focus{outline:.15rem solid #a598e6;outline-offset:0}
+.checks{display:flex;flex-wrap:wrap;gap:.5rem 1rem;font-size:.8rem}
+.checks label{display:flex;align-items:center;gap:.35rem;cursor:pointer}
+.checks input{accent-color:#e9806a;width:1rem;height:1rem;margin:0}
+.sub{border-top:.12rem solid #25212b;padding-top:.5rem}
+.sub summary{cursor:pointer;font-size:.78rem;font-weight:650;color:var(--muted);margin-bottom:.5rem}
+.sub .slider{margin-bottom:.5rem}
+.guide{margin:0;padding:.1rem .85rem .85rem 2rem;font-size:.8rem;line-height:1.5;color:var(--muted)}
+.guide b{color:var(--text)}
+.version{margin-top:.8rem}
+input:disabled,button:disabled,select:disabled{cursor:not-allowed}
