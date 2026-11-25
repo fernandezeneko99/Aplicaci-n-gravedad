@@ -3,3 +3,4 @@ dist/
 .cert/
 *.zxp
 .DS_Store
+qa/battery/state/

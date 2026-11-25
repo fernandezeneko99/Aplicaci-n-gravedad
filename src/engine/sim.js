@@ -15,6 +15,10 @@
   var MIN_AREA = 1;        // px²: piezas menores se descartan
   var WELD = 0.6;          // px: puntos más cercanos se funden (Box2D los fundiría a 0.25 px)
   var Vec2 = planck.Vec2;
+  // Box2D limita lo que un cuerpo avanza y gira por subpaso (2 m y 90°). Con los impulsos que admite el panel
+  // (hasta 100000 px/s y 100000°/s) ese límite frenaba los cuerpos en silencio: se amplía para cubrir esos rangos.
+  planck.Settings.maxTranslation = 40;
+  planck.Settings.maxRotation = 12 * Math.PI;
   var SKIN = 0.01 * PPM;   // polygonRadius de Box2D (0,01 m) en píxeles
 
   // ---------- Geometría ----------
@@ -288,6 +292,18 @@
     return n;
   }
 
+  // Densidades de los cuerpos que se mueven (dinámicos y partículas): calidad mínima y límite de relación.
+  var MAX_RATIO = 1000;
+  function massPlan(scene) {
+    var ds = [];
+    (scene.bodies || []).forEach(function (b) { if (b.type === 'dynamic') ds.push(density(b.material)); });
+    (scene.emitters || []).forEach(function (e) { if (!e.max) return; (e.materials || [e.material]).forEach(function (m) { ds.push(density(m)); }); });
+    var max = ds.length ? Math.max.apply(null, ds) : 1, min = ds.length ? Math.min.apply(null, ds) : 1, raw = max / min, floor = max / MAX_RATIO, ratio = Math.min(raw, MAX_RATIO);
+    var hz = ratio <= 10 ? 0 : ratio <= 40 ? 120 : ratio <= 200 ? 240 : 960;
+    return { ratio: ratio, raw: raw, hz: hz, clamped: raw > MAX_RATIO * 1.0001, material: function (m) { m = m || {}; var d = density(m); if (d >= floor) return m; var c = {}; for (var k in m) c[k] = m[k]; c.density = floor; return c; } };
+  }
+  function density(m) { return Math.max(0.0001, m && m.density !== undefined ? m.density : 1); }
+
   // ---------- Utilidades ----------
   function rng(seed) {
     var a = (seed >>> 0) || 1;
@@ -301,10 +317,16 @@
   // Ejecuta por tramos para que el panel pueda mostrar el progreso: run() devuelve un objeto con step(n).
   function create(scene) {
     var fps = scene.fps, frames = Math.max(1, Math.round(scene.frames)), dtFrame = 1 / fps;
-    var w = scene.world || {}, hz = Math.max(60, Math.min(960, w.quality || 240)), sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
+    var w = scene.world || {}, warnings = [], hz = Math.max(60, Math.min(960, w.quality || 240));
+    // Relación de masas: Box2D apila mal cuerpos de densidades muy distintas. Se sube la calidad lo justo (medido:
+    // ≤1 px de penetración) y, por encima de 1000:1, que Box2D no resuelve, se limita la relación.
+    var masses = massPlan(scene);
+    if (masses.hz > hz) { warnings.push({ id: null, code: 'calidad-subida', hz: masses.hz, from: hz, ratio: masses.ratio }); hz = masses.hz; }
+    if (masses.clamped) warnings.push({ id: null, code: 'masa-limitada', ratio: masses.raw });
+    var sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
     var g = (w.gravity === undefined ? 980 : w.gravity) / PPM, ga = rad(w.gravityAngle || 0);
     var world = new planck.World({ gravity: Vec2(-Math.sin(ga) * g, Math.cos(ga) * g) });
-    var drag = Math.max(0, w.airDrag || 0), warnings = [], out = { frames: frames, fps: fps, bodies: {}, particles: [], contacts: {}, warnings: warnings };
+    var drag = Math.max(0, w.airDrag || 0), out = { frames: frames, fps: fps, bodies: {}, particles: [], contacts: {}, warnings: warnings };
     var ground = world.createBody({ type: 'static' }), byId = {};
 
     // Paredes en los bordes de la composición: cajas gruesas por fuera para que nada las atraviese.
@@ -329,7 +351,7 @@
       var b = item.def, pose = b.type === 'kinematic' && b.track ? at(b.track, k - (b.spawn || 0)) : [b.pose.x, b.pose.y, b.pose.a || 0];
       var type = b.type === 'static' ? 'static' : b.type === 'kinematic' ? 'kinematic' : 'dynamic';
       var body = world.createBody({ type: type, position: Vec2(pose[0] / PPM, pose[1] / PPM), angle: rad(pose[2]), linearDamping: drag, angularDamping: drag, bullet: !!b.bullet });
-      var n = attach(body, item.built, b.material || {});
+      var n = attach(body, item.built, masses.material(b.material));
       if (!n) { warnings.push({ id: b.id, code: 'sin-forma' }); world.destroyBody(body); return false; }
       if (type === 'dynamic' && b.velocity) { body.setLinearVelocity(Vec2((b.velocity.x || 0) / PPM, (b.velocity.y || 0) / PPM)); body.setAngularVelocity(rad(b.velocity.a || 0)); }
       body.setUserData(b.id);
@@ -357,7 +379,7 @@
           var dir = rad(angle + (r() * 2 - 1) * spread / 2), along = (r() - 0.5) * width, base = rad(angle);
           var px = x - Math.sin(base) * along, py = y + Math.cos(base) * along, v = speed * (1 + (r() * 2 - 1) * (e.speedVariation || 0));
           var body = world.createBody({ type: 'dynamic', position: Vec2(px / PPM, py / PPM), angle: e.randomRotation ? r() * Math.PI * 2 : 0, linearDamping: drag, angularDamping: drag });
-          var n = attach(body, scalePieces(em.built[which], size), (e.materials && e.materials[which]) || e.material || {});
+          var n = attach(body, scalePieces(em.built[which], size), masses.material((e.materials && e.materials[which]) || e.material));
           if (!n) { world.destroyBody(body); continue; }
           body.setLinearVelocity(Vec2(Math.cos(dir) * v / PPM, Math.sin(dir) * v / PPM));
           body.gravedadEmitter = e.id;
@@ -486,5 +508,5 @@
 
   function run(scene) { var s = create(scene); s.step(); return s.result(); }
 
-  return { create: create, run: run, decompose: decompose, buildPieces: buildPieces, strokeBoxes: strokeBoxes, clean: clean, hull: hull, area: area, PPM: PPM };
+  return { planckSettings: function () { return planck.Settings; }, create: create, run: run, decompose: decompose, buildPieces: buildPieces, strokeBoxes: strokeBoxes, clean: clean, hull: hull, area: area, PPM: PPM };
 }));

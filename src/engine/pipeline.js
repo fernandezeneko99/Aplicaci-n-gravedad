@@ -47,6 +47,8 @@
   function describeWarning(w, names) {
     var who = names[w.id] || 'Una capa';
     if (w.code === 'sin-forma') return who + ': su contorno es demasiado pequeño para colisionar; se ignora.';
+    if (w.code === 'calidad-subida') return 'Densidades muy distintas (relación ' + Math.round(w.ratio) + ':1): la calidad sube de ' + w.from + ' a ' + w.hz + ' pasos/s para que no se atraviesen. Tarda algo más.';
+    if (w.code === 'masa-limitada') return 'Relación de densidades de ' + Math.round(w.ratio) + ':1: por encima de 1000:1 la física no es estable; se simula como 1000:1.';
     if (w.code === 'union-sin-capa') return who + ': la capa a la que está unida no es un cuerpo; se ignora la unión.';
     if (w.code === 'union-sin-dinamico') return who + ': una unión necesita al menos un cuerpo dinámico.';
     if (w.code === 'contorno-cruzado') return who + ': el trazado se cruza consigo mismo; se usa su contorno convexo.';
