@@ -237,3 +237,30 @@ test('panel: doble clic en Simular no cancela la simulación', { timeout: 30000 
     assert.deepStrictEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+test('panel: tres anchos con avisos, cambio de tipo pendiente y secciones abiertas, sin desbordes', { timeout: 60000 }, async () => {
+  for (const width of [260, 380, 600]) {
+    const { h, c, add } = scene();
+    const a = add('Pelota con un nombre bastante largo para probar el ajuste', ELLIPSE, [60, 60], [400, 100]), b = add('B', RECT, [40, 40], [600, 100]);
+    a.selected = true; b.selected = true;
+    const { browser, page, errors } = await open(h, { width, height: 1800 });
+    try {
+      await waitText(page, '#compChip', /Escena/);
+      await page.click('#dynamic'); await page.waitForSelector('#status.ok');
+      await page.click('#simulate'); await waitText(page, '#status', /Simulado en/, 30000);
+      b.property('ADBE Effect Parade').property('Gravedad · Tipo').property(1)._value = 2;
+      await page.click('#apple');
+      await waitText(page, '#simState', /Tipo cambiado en B/);
+      await page.evaluate(() => { document.querySelectorAll('details').forEach((d) => { d.open = true; }); });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(overflow <= 0, width + ' px: desborde de ' + overflow);
+      // Ningún texto recortado sin puntos suspensivos en los botones principales
+      const clipped = await page.evaluate(() => Array.from(document.querySelectorAll('.cards strong, #simLabel, .small')).filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis').map((e) => e.textContent));
+      assert.deepStrictEqual(clipped, [], width + ' px: texto cortado');
+      const st = await page.evaluate(() => { const e = document.getElementById('simState'); return e.scrollWidth <= e.clientWidth + 1 && e.textContent; });
+      assert.ok(/se aplica al simular o borrar/.test(st), width + ' px: el estado se lee entero');
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'panel-' + width + '.png'), fullPage: true });
+      assert.deepStrictEqual(errors, []);
+    } finally { await browser.close(); }
+  }
+});

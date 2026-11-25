@@ -90,7 +90,7 @@ body.busy .logo img{animation:fall 1s ease-in infinite}
 .sim{margin-top:1rem}
 .sim #simulate{margin-top:0}
 .bake-text{min-width:0}
-#simState{display:block;font-weight:600;font-size:.76rem;color:#7a5146;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#simState{display:block;font-weight:600;font-size:.76rem;color:#7a5146;line-height:1.3;overflow-wrap:anywhere}
 #simulate.done{background:#c8eac0}
 #simulate.done #simState{color:#3f6b3c}
 #simulate.stale{background:#ffd9a8}

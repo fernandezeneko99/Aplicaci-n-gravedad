@@ -37,7 +37,7 @@ var Gravedad = (function () {
   function comp(passive) {
     var c = app.project && app.project.activeItem;
     if (!(c instanceof CompItem) && !passive && app.activeViewer && app.activeViewer.type === ViewerType.VIEWER_COMPOSITION) { app.activeViewer.setActive(); c = app.project.activeItem; }
-    if (!(c instanceof CompItem)) throw Error('Abre una composici\u00f3n.');
+    if (!(c instanceof CompItem)) throw Error('Abre una composici\u00f3n en el visor (o haz doble clic en ella en el panel Proyecto) para usar Gravedad.');
     return c;
   }
   function parade(layer) { try { return layer.property('ADBE Effect Parade'); } catch (e) { return null; } }
@@ -70,7 +70,7 @@ var Gravedad = (function () {
     var fx = control(layer, name);
     if (fx) return fx;
     fx = parade(layer).addProperty(match);
-    if (!fx) throw Error('No se pudo crear el control ' + name + '.');
+    if (!fx) throw Error('No se pudo crear el control ' + name + ' en ' + layer.name + '. Comprueba que After no est\u00e9 renderizando y vuelve a intentarlo.');
     fx.name = name;
     fx = control(layer, name);
     if (value !== undefined) fx.property(1).setValue(value);
@@ -257,10 +257,10 @@ var Gravedad = (function () {
   // ---------- Asignar cuerpos ----------
   function validate(layer) {
     if (!(layer instanceof AVLayer) && !(layer instanceof ShapeLayer) && !(layer instanceof TextLayer)) throw Error(layer.name + ': solo capas visibles (formas, texto, s\u00f3lidos, metraje o precomposiciones).');
-    if (layer.nullLayer) throw Error(layer.name + ': un nulo no tiene contorno. Usa Fuerza o selecci\u00f3nalo como emisor.');
+    if (layer.nullLayer) throw Error(layer.name + ': un nulo no tiene contorno con el que chocar. Para empujar objetos usa Fuerza; para que caiga, usa una capa visible.');
     if (layer.threeDLayer) throw Error(layer.name + ': Gravedad trabaja en 2D. Desactiva el 3D de la capa.');
-    if (layer instanceof AVLayer && !layer.hasVideo) throw Error(layer.name + ': la capa no tiene imagen.');
-    if (isTagged(layer, TAG.world) || isTagged(layer, TAG.force) || isTagged(layer, TAG.emitter)) throw Error(layer.name + ': es un control de Gravedad.');
+    if (layer instanceof AVLayer && !layer.hasVideo) throw Error(layer.name + ': es una capa solo de audio; elige una capa visible.');
+    if (isTagged(layer, TAG.world) || isTagged(layer, TAG.force) || isTagged(layer, TAG.emitter)) throw Error(layer.name + ': es un control de Gravedad (mundo, fuerza o emisor). Aj\u00fastalo en Controles de efectos.');
   }
   function makeBody(layer, type) {
     if (type !== TYPE.dynamic) settleType(layer, type);

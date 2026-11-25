@@ -117,9 +117,9 @@ x=400 y=200, claves propias de Posición en 0 s y 1,5 s con suavizado y salida H
 
 | Capa | Qué | Resultado | Dónde |
 |---|---|---|---|
-| Código | `npm test`: 256 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 256/256 | Contenedor Linux, Node 22, Chromium de Playwright |
+| Código | `npm test`: 257 pruebas (motor, contornos, alfa, host contra After simulado, ES3, regresiones QA, panel en Chromium) | 257/257 | Contenedor Linux, Node 22, Chromium de Playwright |
 | Empaquetado | `node tools/pack.js` → `dist/Gravedad-1.2.0.zxp` (144 KB, 28 archivos firmados) | Firma válida, `mimetype` primero sin comprimir | `python3 tools/verify_zxp.py --strict` |
-| Paquete | Panel ejecutado desde el `.zxp` extraído | 7/7 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
+| Paquete | Panel ejecutado desde el `.zxp` extraído | 8/8 pruebas de panel | `GRAVEDAD_SRC=<extraído> node --test test/panel.test.js` |
 | After Effects real | Instalación, carga del panel, AE-1 … AE-6, Deshacer/Rehacer, guardar y reabrir | **Pendiente** (no hay After en este entorno) | Ver procedimientos |
 
 Re-simular usa un atajo cuando la propiedad tiene exactamente las claves escritas (no las recorre); Borrar solo lee valores.
@@ -127,6 +127,15 @@ Regresiones: clave añadida entre simulaciones, tramo más corto, punto de entra
 
 Casos de editor añadidos en esta tanda: metraje con archivo ausente (caja + aviso), nombres con tildes, comillas, barras y
 emojis, capa con remapeo de tiempo.
+
+## Experiencia de uso (revisada)
+
+- Mensajes de error del host revisados: cada uno dice qué hacer (composición sin abrir, nulo, capa de audio, control de
+  Gravedad seleccionado, fallo al crear controles).
+- Panel en 260, 380 y 600 px con avisos, cambio de tipo pendiente y todas las secciones abiertas: sin desbordes ni textos de
+  botón cortados; el estado de Simular ya no se corta en 260 px (prueba «tres anchos»).
+- Recursos al cerrar: el panel solo mantiene un intervalo de latido (se salta con el panel oculto) y un `ResizeObserver`;
+  CEP destruye la página al cerrar el panel. Sin procesos ni archivos abiertos tras cerrar.
 
 ## Siguiente acción
 
