@@ -259,3 +259,37 @@ test('F2 · la forma de ejemplo reutilizada sigue sirviendo de plantilla al simu
   const out = await Pipeline.simulate(io(h));
   assert.strictEqual(out.summary.created, 6);
 });
+
+// ---------- F4: los interruptores del mundo recuerdan la configuración ----------
+test('F4 · Luna → Espacio → Tierra recupera la gravedad de la Luna', () => {
+  const { h } = setup();
+  ok(h.call('world', { gravity: 160 }));
+  assert.strictEqual(ok(h.call('world', { environment: 'space' })).world.gravity, 0);
+  assert.strictEqual(ok(h.call('world', { environment: 'earth' })).world.gravity, 160);
+});
+test('F4 · Espacio dos veces seguidas no pierde la gravedad guardada', () => {
+  const { h } = setup();
+  ok(h.call('world', { gravity: 370 }));
+  ok(h.call('world', { environment: 'space' })); ok(h.call('world', { environment: 'space' }));
+  assert.strictEqual(ok(h.call('world', { environment: 'earth' })).world.gravity, 370);
+});
+test('F4 · quitar y poner paredes conserva el techo y los bordes elegidos', () => {
+  const { h } = setup();
+  ok(h.call('world', { floor: true, sides: false, ceiling: true }));
+  const off = ok(h.call('world', { walls: false })).world;
+  assert.ok(!off.floor && !off.sides && !off.ceiling);
+  const on = ok(h.call('world', { walls: true })).world;
+  assert.deepStrictEqual([on.floor, on.sides, on.ceiling], [true, false, true]);
+});
+test('F4 · la memoria de los interruptores sobrevive a Simular y Borrar', async () => {
+  const { h, c } = setup();
+  ok(h.call('world', { gravity: 160 })); ok(h.call('world', { environment: 'space' }));
+  const b = shape(c, 'b', [40, 40], [300, 100]); sel(c, [b]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h)); ok(h.call('clear'));
+  assert.strictEqual(ok(h.call('world', { environment: 'earth' })).world.gravity, 160);
+});
+test('F4 · Tierra con una gravedad ya distinta de 0 no la cambia', () => {
+  const { h } = setup();
+  ok(h.call('world', { gravity: 2480 }));
+  assert.strictEqual(ok(h.call('world', { environment: 'earth' })).world.gravity, 2480);
+});

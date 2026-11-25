@@ -295,17 +295,35 @@ var Gravedad = (function () {
   }
 
   // ---------- Mundo desde el panel ----------
+  // Campos \u00abclave=valor\u00bb del comentario del nulo de mundo (estado de la simulacion y memoria de los interruptores).
+  function commentFields(w) {
+    var out = {}, parts = String(w.comment).split(';');
+    for (var i = 1; i < parts.length; i++) { var kv = parts[i].split('='); if (kv.length === 2) out[kv[0]] = kv[1]; }
+    return out;
+  }
+  function setCommentFields(w, fields) {
+    var text = TAG.world;
+    for (var k in fields) if (fields.hasOwnProperty(k) && fields[k] !== null && fields[k] !== undefined) text += ';' + k + '=' + fields[k];
+    w.comment = text;
+  }
   function setWorld(arg) {
     var c = comp();
     return undo('Gravedad \u00b7 Mundo', function () {
-      var w = ensureWorld(c);
-      if (arg.environment === 'space') control(w, N.gravity).property(1).setValue(0);
-      if (arg.environment === 'earth') control(w, N.gravity).property(1).setValue(980);
+      var w = ensureWorld(c), mem = commentFields(w), G = control(w, N.gravity).property(1);
+      // Los interruptores recuerdan lo que habia: Espacio guarda la gravedad (Luna, Marte...) y Tierra la recupera;
+      // quitar paredes guarda que bordes estaban y ponerlas los recupera (el techo incluido).
+      if (arg.environment === 'space') { if (G.value !== 0) mem.g = G.value; setIfChanged(G, 0); }
+      if (arg.environment === 'earth' && G.value === 0) setIfChanged(G, mem.g && isFinite(+mem.g) && +mem.g !== 0 ? +mem.g : 980);
+      if (typeof arg.walls === 'boolean') {
+        var F = control(w, N.floor).property(1), S = control(w, N.sides).property(1), T = control(w, N.ceiling).property(1);
+        if (!arg.walls) { if (F.value || S.value || T.value) mem.e = (F.value ? 'f' : '') + (S.value ? 's' : '') + (T.value ? 't' : ''); setIfChanged(F, 0); setIfChanged(S, 0); setIfChanged(T, 0); }
+        else if (!F.value && !S.value && !T.value) { var e = mem.e || 'fs'; setIfChanged(F, e.indexOf('f') >= 0 ? 1 : 0); setIfChanged(S, e.indexOf('s') >= 0 ? 1 : 0); setIfChanged(T, e.indexOf('t') >= 0 ? 1 : 0); }
+      }
+      setCommentFields(w, mem);
       if (arg.markers !== undefined) addControl(w, 'ADBE Checkbox Control', N.markers, 0).property(1).setValue(arg.markers ? 1 : 0);
       var nums = { gravity: [N.gravity, -100000, 100000], gravityAngle: [N.angle, -3600, 3600], airDrag: [N.drag, 0, 100], quality: [N.quality, 60, 960] }, flags = { floor: N.floor, sides: N.sides, ceiling: N.ceiling };
       for (var key in nums) if (nums.hasOwnProperty(key) && typeof arg[key] === 'number' && isFinite(arg[key])) setIfChanged(control(w, nums[key][0]).property(1), Math.max(nums[key][1], Math.min(nums[key][2], arg[key])));
       for (var f in flags) if (flags.hasOwnProperty(f) && typeof arg[f] === 'boolean') setIfChanged(control(w, flags[f]).property(1), arg[f] ? 1 : 0);
-      if (arg.walls !== undefined) { control(w, N.floor).property(1).setValue(arg.walls ? 1 : 0); control(w, N.sides).property(1).setValue(arg.walls ? 1 : 0); control(w, N.ceiling).property(1).setValue(arg.walls && arg.ceiling ? 1 : 0); }
       return summary(c);
     });
   }
@@ -774,9 +792,10 @@ var Gravedad = (function () {
       var w = ensureWorld(c), d = new Date();
       writeStore(c, store);
       // Si el nulo de mundo se acaba de crear, la huella se recalcula (el mundo forma parte de ella).
-      w.comment = TAG.world;
+      var mem = commentFields(w);
       var sig = hadWorld && arg.signature ? arg.signature : signature(c);
-      w.comment = TAG.world + ';sig=' + sig + ';frames=' + frames + ';start=' + c.workAreaStart + ';fps=' + c.frameRate + ';date=' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+      mem.ids = null; mem.sig = sig; mem.frames = frames; mem.start = c.workAreaStart; mem.fps = c.frameRate; mem.date = d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+      setCommentFields(w, mem);
       var s = summary(c, true); s.written = written; s.created = created; s.keys = keysWritten; s.problems = problems; return s;
     });
   }
@@ -961,7 +980,8 @@ var Gravedad = (function () {
         if (store.layers[String(dl.id)] === undefined && !legacy[String(dl.id)] && isBody(dl) && bodyType(dl) === 'dynamic' && (motionProps(dl)[0].numKeys > 1 || motionProps(dl)[motionProps(dl).length - 1].numKeys > 1)) skipped.push(dl.name);
       }
       writeStore(c, store);
-      var w0 = find(c, TAG.world); if (w0) w0.comment = TAG.world;
+      var w0 = find(c, TAG.world);
+      if (w0) { var m0 = commentFields(w0); m0.sig = m0.frames = m0.start = m0.fps = m0.date = m0.ids = null; setCommentFields(w0, m0); }
       var s0 = summary(c); s0.cleared = cleared; s0.removed = removed; s0.legacy = skipped; return s0;
     });
   }

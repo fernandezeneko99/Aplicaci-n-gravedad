@@ -256,7 +256,7 @@ test('mundo: espacio sin paredes; Tierra con paredes', async () => {
   assert.strictEqual(s.world.gravity, 0); assert.strictEqual(s.world.floor, false);
   const s2 = ok(h.call('world', { environment: 'earth', walls: true }));
   assert.strictEqual(s2.world.gravity, 980); assert.strictEqual(s2.world.floor, true); assert.strictEqual(s2.world.sides, true);
-  assert.strictEqual(c._layers.filter((l) => l.comment === 'gravedad:mundo').length, 1, 'un solo mundo');
+  assert.strictEqual(c._layers.filter((l) => String(l.comment).indexOf('gravedad:mundo') === 0).length, 1, 'un solo mundo');
 });
 
 test('fuerza: ventilador creado con guía y controles; empuja a los cuerpos', async () => {

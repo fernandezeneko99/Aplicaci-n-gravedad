@@ -223,8 +223,8 @@
   function worldChange(patch, message) {
     return run(async function () { render(await call('world', patch)); if (message) status(message, 'ok'); }).then(function () { if (summary) render(summary); });
   }
-  $('environment').onchange = function () { worldChange({ gravity: this.checked ? 0 : 980 }, this.checked ? 'Espacio · sin gravedad. Las fuerzas siguen activas.' : 'Tierra · gravedad terrestre.'); };
-  $('walls').onchange = function () { worldChange({ floor: this.checked, sides: this.checked, ceiling: false }, this.checked ? 'Paredes · el suelo y los lados de la composición contienen los objetos.' : 'Sin paredes · los objetos pueden salir de la composición.'); };
+  $('environment').onchange = function () { worldChange({ environment: this.checked ? 'space' : 'earth' }, this.checked ? 'Espacio · sin gravedad. Las fuerzas siguen activas.' : 'Gravedad restaurada.'); };
+  $('walls').onchange = function () { worldChange({ walls: this.checked }, this.checked ? 'Paredes · el suelo y los lados de la composición contienen los objetos.' : 'Sin paredes · los objetos pueden salir de la composición.'); };
   $('clear').onclick = function () {
     run(async function () {
       var d = await call('clear'); render(d); last = null; showViewer(false); meter.set({ contacts: [] });
