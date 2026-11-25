@@ -172,3 +172,51 @@ test('escena grande: 300 cuerpos x 250 fotogramas en tiempo razonable', () => {
   assert.ok(ms < 30000, ms + ' ms');
   for (const id in r.bodies) { const [x, y] = last(r.bodies[id]); assert.ok(x > 0 && x < 1920 && y > 0 && y < 1080, id + ' dentro: ' + x + ',' + y); }
 });
+
+test('pivote: un péndulo colgado de su anclaje oscila sin caerse', () => {
+  const r = Sim.run(base({ frames: 100, world: { gravity: 980 }, bodies: [{ id: 'p', type: 'dynamic', pose: { x: 500, y: 300 }, shape: { kind: 'box', x: 150, y: 0, w: 40, h: 40 } }], joints: [{ a: 'p', b: null, type: 'pivot' }] }));
+  const d = r.bodies.p.data;
+  for (let k = 0; k < 100; k++) assert.ok(Math.hypot(d[k * 3] - 500, d[k * 3 + 1] - 300) < 1, 'el anclaje no se mueve');
+  const angles = []; for (let k = 0; k < 100; k++) angles.push(d[k * 3 + 2]);
+  assert.ok(Math.max(...angles) > 80, 'cae girando hasta abajo: ' + Math.max(...angles));
+});
+
+test('barra rígida: dos cuerpos mantienen la distancia; muelle la estira', () => {
+  const bodies = [{ id: 'a', type: 'static', pose: { x: 500, y: 100 }, shape: box(20, 20) }, { id: 'b', type: 'dynamic', pose: { x: 700, y: 100 }, shape: box(30, 30) }];
+  const rigid = Sim.run(base({ frames: 60, world: { gravity: 980 }, bodies, joints: [{ a: 'b', b: 'a', type: 'distance' }] }));
+  const d = rigid.bodies.b.data;
+  for (let k = 0; k < 60; k++) assert.ok(Math.abs(Math.hypot(d[k * 3] - 500, d[k * 3 + 1] - 100) - 200) < 3);
+  const spring = Sim.run(base({ frames: 60, world: { gravity: 980 }, bodies, joints: [{ a: 'b', b: 'a', type: 'spring', frequency: 1, damping: 0.1 }] }));
+  const ds = spring.bodies.b.data;
+  let maxLen = 0; for (let k = 0; k < 60; k++) maxLen = Math.max(maxLen, Math.hypot(ds[k * 3] - 500, ds[k * 3 + 1] - 100));
+  assert.ok(maxLen > 230, 'el muelle se estira: ' + maxLen);
+});
+
+test('unión con una capa que no es cuerpo avisa y no rompe', () => {
+  const r = Sim.run(base({ frames: 5, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 0, y: 0 }, shape: box(10, 10) }], joints: [{ a: 'a', b: 'zz', type: 'pivot' }] }));
+  assert.ok(r.warnings.some((w) => w.code === 'union-sin-capa'));
+});
+
+test('marcadores: un choque fuerte por rebote, sin repetir en reposo', () => {
+  const r = Sim.run(base({ frames: 150, world: { gravity: 980, floor: true, markers: true }, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 500, y: 500 }, material: { restitution: 0 }, shape: box(60, 60) }] }));
+  const hits = r.contacts.a || [];
+  assert.strictEqual(hits.length, 1, JSON.stringify(hits));
+  assert.ok(hits[0] >= 25 && hits[0] <= 28, 'choca hacia el fotograma 26-27 (550 px de caída): ' + hits[0]);
+});
+
+test('partículas con varias formas: cada una elige plantilla', () => {
+  const em = { id: 'e', max: 40, seed: 3, shapes: [{ kind: 'circle', r: 8 }, box(20, 10), box(5, 30)], track: [[500, 100, 90, 100, 200, 60, 300]] };
+  const r = Sim.run(base({ frames: 30, emitters: [em] }));
+  const used = new Set(r.particles.map((p) => p.template));
+  assert.deepStrictEqual([...used].sort(), [0, 1, 2]);
+});
+
+test('tramos que acaban en el penúltimo fotograma no pierden el último', () => {
+  const sc = base({ frames: 10, bodies: [{ id: 'a', type: 'dynamic', pose: { x: 960, y: 0 }, shape: box(20, 20) }] });
+  for (const chunk of [1, 3, 9, 10]) {
+    const s = Sim.create(JSON.parse(JSON.stringify(sc)));
+    let st, guard = 0; do { st = s.step(chunk); } while (!st.done && guard++ < 100);
+    assert.strictEqual(s.result().bodies.a.data.length, 30, 'tramo ' + chunk);
+    assert.strictEqual(st.frame, 10);
+  }
+});

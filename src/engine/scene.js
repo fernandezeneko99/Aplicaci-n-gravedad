@@ -50,22 +50,36 @@
 
   // host: escena de gravedad.jsx con layerShape resuelto en cada cuerpo/emisor.
   function build(host) {
-    var scene = { fps: host.fps, frames: host.frames, width: host.width, height: host.height, world: host.world, bodies: [], forces: host.forces || [], emitters: [] };
+    var scene = { fps: host.fps, frames: host.frames, width: host.width, height: host.height, world: host.world, bodies: [], forces: host.forces || [], emitters: [], joints: host.joints || [] };
     host.bodies.forEach(function (b) {
       scene.bodies.push({ id: b.id, type: b.type, spawn: b.spawn, despawn: b.despawn, pose: b.pose, velocity: b.velocity, track: b.track, material: b.material, shape: bodyShape(b.layerShape, b.matrix, b.pose) });
     });
     (host.emitters || []).forEach(function (e) {
-      scene.emitters.push({ id: e.id, from: e.from, to: e.to, max: e.max, lifetime: e.lifetime, size: e.size, sizeVariation: e.sizeVariation, speedVariation: e.speedVariation, spin: e.spin, randomRotation: e.randomRotation, seed: e.seed, material: e.material, track: e.track, shape: bodyShape(e.layerShape, e.matrix, e.templatePose) });
+      scene.emitters.push({ id: e.id, from: e.from, to: e.to, max: e.max, lifetime: e.lifetime, size: e.size, sizeVariation: e.sizeVariation, speedVariation: e.speedVariation, spin: e.spin, randomRotation: e.randomRotation, seed: e.seed, track: e.track,
+        materials: e.templates.map(function (t) { return t.material; }), shapes: e.templates.map(function (t) { return bodyShape(t.layerShape, t.matrix, t.templatePose); }) });
     });
     return scene;
   }
 
-  // Lo que After necesita para escribir: solo los cuerpos dinámicos y las partículas.
+  // Cuando un cuerpo queda quieto no hacen falta más claves: After mantiene el último valor.
+  function trim(rec) {
+    var d = rec.data, n = d.length / 3, end = n - 1, lx = d[end * 3], ly = d[end * 3 + 1], la = d[end * 3 + 2];
+    while (end > 0 && Math.abs(d[(end - 1) * 3] - lx) < 0.01 && Math.abs(d[(end - 1) * 3 + 1] - ly) < 0.01 && Math.abs(d[(end - 1) * 3 + 2] - la) < 0.01) end--;
+    var copy = {}; for (var k in rec) if (Object.prototype.hasOwnProperty.call(rec, k)) copy[k] = rec[k];
+    copy.data = d.slice(0, (end + 1) * 3);
+    return copy;
+  }
+
+  // Lo que After necesita para escribir: solo los cuerpos dinámicos, sus choques y las partículas.
   function payload(host, result) {
-    var bodies = {}, emitters = {};
-    host.bodies.forEach(function (b) { if (b.type === 'dynamic' && result.bodies[b.id]) bodies[b.id] = result.bodies[b.id]; });
-    (host.emitters || []).forEach(function (e) { emitters[e.id] = { template: e.template, templateAngle: e.templatePose.a }; });
-    return { compId: host.compId, frames: host.frames, bodies: bodies, particles: result.particles, emitters: emitters };
+    var bodies = {}, emitters = {}, contacts = {};
+    host.bodies.forEach(function (b) {
+      if (b.type !== 'dynamic' || !result.bodies[b.id]) return;
+      bodies[b.id] = trim(result.bodies[b.id]);
+      if (result.contacts && result.contacts[b.id]) contacts[b.id] = result.contacts[b.id];
+    });
+    (host.emitters || []).forEach(function (e) { emitters[e.id] = { fade: e.fade || 0, templates: e.templates.map(function (t) { return { id: t.id, angle: t.templatePose.a }; }) }; });
+    return { compId: host.compId, frames: host.frames, bodies: bodies, particles: result.particles.map(trim), emitters: emitters, contacts: contacts, markers: !!(host.world && host.world.markers) };
   }
 
   function script(data) { return 'Gravedad._incoming = ' + JSON.stringify(data) + ';\n'; }

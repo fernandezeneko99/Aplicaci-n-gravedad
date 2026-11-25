@@ -13,8 +13,12 @@ var Gravedad = (function () {
     type: 'Gravedad \u00b7 Tipo', shape: 'Gravedad \u00b7 Forma', density: 'Gravedad \u00b7 Densidad', friction: 'Gravedad \u00b7 Fricci\u00f3n', bounce: 'Gravedad \u00b7 Rebote',
     gravity: 'Gravedad \u00b7 Gravedad', angle: 'Gravedad \u00b7 Direcci\u00f3n', floor: 'Gravedad \u00b7 Suelo', sides: 'Gravedad \u00b7 Lados', ceiling: 'Gravedad \u00b7 Techo', drag: 'Gravedad \u00b7 Resistencia del aire', quality: 'Gravedad \u00b7 Calidad',
     forceType: 'Gravedad \u00b7 Tipo de fuerza', strength: 'Gravedad \u00b7 Intensidad', range: 'Gravedad \u00b7 Alcance',
-    template: 'Gravedad \u00b7 Capa de part\u00edcula', rate: 'Gravedad \u00b7 Ritmo', max: 'Gravedad \u00b7 M\u00e1ximo', speed: 'Gravedad \u00b7 Velocidad', spread: 'Gravedad \u00b7 Dispersi\u00f3n', width: 'Gravedad \u00b7 Anchura', life: 'Gravedad \u00b7 Vida', size: 'Gravedad \u00b7 Tama\u00f1o', sizeVar: 'Gravedad \u00b7 Variaci\u00f3n de tama\u00f1o', spin: 'Gravedad \u00b7 Giro', seed: 'Gravedad \u00b7 Semilla'
+    template: 'Gravedad \u00b7 Capa de part\u00edcula', rate: 'Gravedad \u00b7 Ritmo', max: 'Gravedad \u00b7 M\u00e1ximo', speed: 'Gravedad \u00b7 Velocidad', spread: 'Gravedad \u00b7 Dispersi\u00f3n', width: 'Gravedad \u00b7 Anchura', life: 'Gravedad \u00b7 Vida', size: 'Gravedad \u00b7 Tama\u00f1o', sizeVar: 'Gravedad \u00b7 Variaci\u00f3n de tama\u00f1o', spin: 'Gravedad \u00b7 Giro', seed: 'Gravedad \u00b7 Semilla', fade: 'Gravedad \u00b7 Desvanecer',
+    impulse: 'Gravedad \u00b7 Impulso', impulseAngle: 'Gravedad \u00b7 Direcci\u00f3n del impulso', spinStart: 'Gravedad \u00b7 Giro inicial',
+    joint: 'Gravedad \u00b7 Uni\u00f3n', jointTo: 'Gravedad \u00b7 Unida a', stiffness: 'Gravedad \u00b7 Rigidez del muelle', damping: 'Gravedad \u00b7 Amortiguaci\u00f3n',
+    markers: 'Gravedad \u00b7 Marcadores al chocar'
   };
+  var MAX_TEMPLATES = 8, JOINTS = ['pivot', 'distance', 'spring'];
   var NAMES = { world: 'Gravedad \u00b7 Mundo', force: 'Gravedad \u00b7 Fuerza', emitter: 'Gravedad \u00b7 Emisor', particleShape: 'Forma de part\u00edcula', temp: 'Gravedad \u00b7 temporal' };
   var TYPE = { dynamic: 1, fixed: 2, off: 3 };
   var tempItems = [];
@@ -125,8 +129,8 @@ var Gravedad = (function () {
   // ---------- Mundo ----------
   function worldSettings(c) {
     var w = find(c, TAG.world);
-    if (!w) return { exists: false, gravity: 980, gravityAngle: 0, floor: true, sides: true, ceiling: false, airDrag: 0, quality: 240 };
-    return { exists: true, gravity: read(w, N.gravity, 980), gravityAngle: read(w, N.angle, 0), floor: !!read(w, N.floor, 1), sides: !!read(w, N.sides, 1), ceiling: !!read(w, N.ceiling, 0), airDrag: Math.max(0, read(w, N.drag, 0)), quality: Math.max(60, Math.min(960, read(w, N.quality, 240))) };
+    if (!w) return { exists: false, gravity: 980, gravityAngle: 0, floor: true, sides: true, ceiling: false, airDrag: 0, quality: 240, markers: false };
+    return { exists: true, gravity: read(w, N.gravity, 980), gravityAngle: read(w, N.angle, 0), floor: !!read(w, N.floor, 1), sides: !!read(w, N.sides, 1), ceiling: !!read(w, N.ceiling, 0), airDrag: Math.max(0, read(w, N.drag, 0)), quality: Math.max(60, Math.min(960, read(w, N.quality, 240))), markers: !!read(w, N.markers, 0) };
   }
   function ensureWorld(c) {
     var w = find(c, TAG.world);
@@ -140,6 +144,7 @@ var Gravedad = (function () {
     addControl(w, 'ADBE Checkbox Control', N.ceiling, 0);
     addControl(w, 'ADBE Slider Control', N.drag, 0);
     addControl(w, 'ADBE Slider Control', N.quality, 240);
+    addControl(w, 'ADBE Checkbox Control', N.markers, 0);
     w.moveToEnd();
     return w;
   }
@@ -155,7 +160,7 @@ var Gravedad = (function () {
       if (!control(l, N.type)) continue;
       var type = bodyType(l);
       out[type]++;
-      if (type === 'dynamic' && transformProp(l, 'ADBE Position').numKeys > 2) out.simulated++;
+      if (type === 'dynamic' && (transformProp(l, 'ADBE Position').numKeys > 0 || transformProp(l, 'ADBE Position_0').numKeys > 0)) out.simulated++;
     }
     return out;
   }
@@ -175,6 +180,9 @@ var Gravedad = (function () {
     addControl(layer, 'ADBE Slider Control', N.density, 1);
     addControl(layer, 'ADBE Slider Control', N.friction, 0.4);
     addControl(layer, 'ADBE Slider Control', N.bounce, 0.2);
+    addControl(layer, 'ADBE Slider Control', N.impulse, 0);
+    addControl(layer, 'ADBE Angle Control', N.impulseAngle, 0);
+    addControl(layer, 'ADBE Slider Control', N.spinStart, 0);
   }
   function assign(arg) {
     var c = comp(), layers = c.selectedLayers, type = TYPE[arg.mode];
@@ -187,6 +195,30 @@ var Gravedad = (function () {
     });
   }
 
+  // ---------- Uniones ----------
+  // La union vive en la primera capa seleccionada: su punto de anclaje es el pivote o el extremo de la barra/muelle.
+  // Con una sola capa, queda colgada de un punto fijo de la composicion (su anclaje).
+  function join(arg) {
+    var c = comp(), layers = c.selectedLayers, kind = 1;
+    for (var k = 0; k < JOINTS.length; k++) if (JOINTS[k] === arg.type) kind = k + 1;
+    if (layers.length < 1 || layers.length > 2) throw Error('Selecciona una capa (se cuelga de su punto de anclaje) o dos capas para unirlas.');
+    for (var i = 0; i < layers.length; i++) validate(layers[i]);
+    return undo('Gravedad \u00b7 Unir', function () {
+      // After no garantiza el orden de seleccion: la union va en la capa que se mueve (la que no es Fija).
+      var a = layers[0], b = layers.length > 1 ? layers[1] : null;
+      if (b && isBody(a) && bodyType(a) === 'fixed' && !(isBody(b) && bodyType(b) === 'fixed')) { var swap = a; a = b; b = swap; }
+      if (!isBody(a)) makeBody(a, TYPE.dynamic);
+      if (b && !isBody(b)) makeBody(b, TYPE.fixed);
+      addMenu(a, N.joint, ['Pivote', 'Barra r\u00edgida', 'Muelle', 'Ninguna'], kind);
+      control(a, N.joint).property(1).setValue(kind);
+      addControl(a, 'ADBE Layer Control', N.jointTo);
+      control(a, N.jointTo).property(1).setValue(b ? b.index : 0);
+      addControl(a, 'ADBE Slider Control', N.stiffness, 2);
+      addControl(a, 'ADBE Slider Control', N.damping, 0.2);
+      var s = summary(c); s.joined = b ? 2 : 1; return s;
+    });
+  }
+
   // ---------- Mundo desde el panel ----------
   function setWorld(arg) {
     var c = comp();
@@ -194,6 +226,7 @@ var Gravedad = (function () {
       var w = ensureWorld(c);
       if (arg.environment === 'space') control(w, N.gravity).property(1).setValue(0);
       if (arg.environment === 'earth') control(w, N.gravity).property(1).setValue(980);
+      if (arg.markers !== undefined) addControl(w, 'ADBE Checkbox Control', N.markers, 0).property(1).setValue(arg.markers ? 1 : 0);
       if (arg.walls !== undefined) { control(w, N.floor).property(1).setValue(arg.walls ? 1 : 0); control(w, N.sides).property(1).setValue(arg.walls ? 1 : 0); control(w, N.ceiling).property(1).setValue(arg.walls && arg.ceiling ? 1 : 0); }
       return summary(c);
     });
@@ -207,6 +240,7 @@ var Gravedad = (function () {
     g.name = 'Flecha';
     var v = g.property('ADBE Vectors Group'), path = v.addProperty('ADBE Vector Shape - Group'), s = new Shape();
     s.vertices = [[-40, -6], [30, -6], [30, -20], [70, 0], [30, 20], [30, 6], [-40, 6]]; s.closed = true;
+    s.inTangents = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]; s.outTangents = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]];
     path.property('ADBE Vector Shape').setValue(s);
     v.addProperty('ADBE Vector Graphic - Fill').property('ADBE Vector Fill Color').setValue(color);
     if (rangeExpression) {
@@ -246,17 +280,18 @@ var Gravedad = (function () {
     l.transform.position.setValue([c.width / 2, c.height / 2]);
     return l;
   }
+  function templateName(i) { return i ? N.template + ' ' + (i + 1) : N.template; }
   function particles() {
-    var c = comp(), sel = c.selectedLayers, template = null;
-    for (var i = 0; i < sel.length; i++) if (!sel[i].nullLayer && !isTagged(sel[i], 'gravedad:')) { template = sel[i]; break; }
-    if (template) validate(template);
+    var c = comp(), sel = c.selectedLayers, chosen = [];
+    for (var i = 0; i < sel.length && chosen.length < MAX_TEMPLATES; i++) if (!sel[i].nullLayer && !isTagged(sel[i], 'gravedad:')) chosen.push(sel[i]);
+    for (i = 0; i < chosen.length; i++) validate(chosen[i]);
     return undo('Gravedad \u00b7 Part\u00edculas', function () {
-      if (!template) template = sampleShape(c);
-      var l = guide(c, NAMES.emitter, TAG.emitter, [1, 0.6, 0.25], 'var w=effect("' + N.width + '")(1); [Math.max(w,1),4]');
+      if (!chosen.length) chosen.push(sampleShape(c));
+      var l = guide(c, NAMES.emitter, TAG.emitter, [1, 0.6, 0.25], 'var w=effect("' + N.width + '")(1); [4,Math.max(w,1)]');
       l.transform.position.setValue([c.width / 2, c.height * 0.12]);
       l.transform.rotation.setValue(90);
-      addControl(l, 'ADBE Layer Control', N.template);
-      control(l, N.template).property(1).setValue(template.index);
+      // Varias capas seleccionadas = varias formas: cada particula elige una al azar (confeti, hojas...).
+      for (var t = 0; t < chosen.length; t++) { addControl(l, 'ADBE Layer Control', templateName(t)); control(l, templateName(t)).property(1).setValue(chosen[t].index); }
       addControl(l, 'ADBE Slider Control', N.rate, 20);
       addControl(l, 'ADBE Slider Control', N.max, 100);
       addControl(l, 'ADBE Slider Control', N.speed, 300);
@@ -266,8 +301,9 @@ var Gravedad = (function () {
       addControl(l, 'ADBE Slider Control', N.size, 100);
       addControl(l, 'ADBE Slider Control', N.sizeVar, 30);
       addControl(l, 'ADBE Slider Control', N.spin, 90);
+      addControl(l, 'ADBE Slider Control', N.fade, 0.3);
       addControl(l, 'ADBE Slider Control', N.seed, 1);
-      template.enabled = false;
+      for (t = 0; t < chosen.length; t++) chosen[t].enabled = false;
       select(c, [l]);
       return summary(c);
     });
@@ -302,7 +338,7 @@ var Gravedad = (function () {
     var copy = tc.layer(1);
     if (copy.parent) copy.parent = null;
     var tr = copy.property('ADBE Transform Group');
-    if (tr.property('ADBE Position').dimensionsSeparated) tr.property('ADBE Position').dimensionsSeparated = false;
+    try { if (tr.property('ADBE Position').dimensionsSeparated) { neutral(tr.property('ADBE Position_0'), 0); neutral(tr.property('ADBE Position_1'), 0); tr.property('ADBE Position').dimensionsSeparated = false; } } catch (eSep) {}
     neutral(tr.property('ADBE Anchor Point'), [r.left, r.top]);
     neutral(tr.property('ADBE Position'), [2, 2]);
     neutral(tr.property('ADBE Scale'), [k * 100, k * 100]);
@@ -360,6 +396,9 @@ var Gravedad = (function () {
       var dt = 1 / c.frameRate, before = pose(l, t - dt, p.a);
       if (animated(l) && hasKeyBefore(l, t)) body.velocity = { x: round((p.x - before.x) / dt), y: round((p.y - before.y) / dt), a: round((p.a - before.a) / dt) };
       if (animated(l) && !hasKeyBefore(l, t) && l.parent && animated(l.parent)) body.note = body.note || 'padre-animado';
+      // Impulso: 0 grados = hacia arriba, 90 = derecha (como el dial de angulo de After).
+      var imp = read(l, N.impulse, 0), dir = read(l, N.impulseAngle, 0) * Math.PI / 180, spin = read(l, N.spinStart, 0);
+      if (imp || spin) { var v = body.velocity || { x: 0, y: 0, a: 0 }; body.velocity = { x: round(v.x + Math.sin(dir) * imp), y: round(v.y - Math.cos(dir) * imp), a: round(v.a + spin) }; }
     }
     return body;
   }
@@ -369,18 +408,38 @@ var Gravedad = (function () {
     return false;
   }
 
+  function templatesOf(l, c) {
+    var out = [];
+    for (var i = 0; i < MAX_TEMPLATES; i++) {
+      var fx = control(l, templateName(i));
+      if (!fx) { if (i) break; else continue; }
+      var ix = Math.round(fx.property(1).value);
+      if (ix >= 1 && ix <= c.numLayers && c.layer(ix) !== l && !isTagged(c.layer(ix), 'gravedad:')) out.push(c.layer(ix));
+    }
+    return out;
+  }
   function gather(arg) {
     var c = comp(), frames = frameCount(c), dir = arg.tempDir || Folder.temp.fsName, cache = {};
     var folder = new Folder(dir); if (!folder.exists) folder.create();
     var scene = { compId: c.id, fps: c.frameRate, frames: frames, start: c.workAreaStart, width: c.width, height: c.height, world: worldSettings(c), bodies: [], forces: [], emitters: [], problems: [] };
     var i, k, l, templates = {}, emitterLayers = findAll(c, TAG.emitter);
-    for (i = 0; i < emitterLayers.length; i++) { var ix = Math.round(read(emitterLayers[i], N.template, 0)); if (ix >= 1 && ix <= c.numLayers) templates[c.layer(ix).id] = true; }
+    for (i = 0; i < emitterLayers.length; i++) { var tl = templatesOf(emitterLayers[i], c); for (k = 0; k < tl.length; k++) templates[tl[k].id] = true; }
     for (i = 1; i <= c.numLayers; i++) {
       l = c.layer(i);
       if (!isBody(l) || templates[l.id]) continue;
       if (l.threeDLayer) { scene.problems.push(l.name + ': es 3D, se ignora.'); continue; }
       try { var b = describe(l, c, frames, dir, cache); if (b) scene.bodies.push(b); }
       catch (e) { scene.problems.push(l.name + ': ' + e.message); }
+    }
+    // Uniones definidas en los cuerpos.
+    scene.joints = [];
+    for (i = 1; i <= c.numLayers; i++) {
+      l = c.layer(i);
+      if (!isBody(l) || !control(l, N.joint) || templates[l.id]) continue;
+      var jk = Math.round(read(l, N.joint, 4));
+      if (jk < 1 || jk > 3) continue;
+      var bi = Math.round(read(l, N.jointTo, 0)), other = bi >= 1 && bi <= c.numLayers && c.layer(bi) !== l ? c.layer(bi) : null;
+      scene.joints.push({ a: String(l.id), b: other ? String(other.id) : null, type: JOINTS[jk - 1], frequency: Math.max(0.05, read(l, N.stiffness, 2)), damping: Math.max(0, read(l, N.damping, 0.2)) });
     }
     var forces = findAll(c, TAG.force);
     for (i = 0; i < forces.length; i++) {
@@ -397,16 +456,20 @@ var Gravedad = (function () {
     for (i = 0; i < emitters.length; i++) {
       l = emitters[i];
       if (!l.enabled) continue;
-      var ti = Math.round(read(l, N.template, 0)), tpl = ti >= 1 && ti <= c.numLayers ? c.layer(ti) : null;
-      if (!tpl || tpl === l) { scene.problems.push(l.name + ': elige la capa de part\u00edcula en Controles de efectos.'); continue; }
+      var tpls = templatesOf(l, c);
+      if (!tpls.length) { scene.problems.push(l.name + ': elige la capa de part\u00edcula en Controles de efectos.'); continue; }
       try {
-        validate(tpl);
-        var desc = describe(tpl, c, frames, dir, cache, 'dynamic');
-        if (!desc) { var t0 = frameTime(c, 0), p0 = pose(tpl, t0, rotationGuess(tpl, t0)), g0 = geometryOf(tpl, c, t0, dir, cache); desc = { pose: { x: p0.x, y: p0.y, a: round(p0.a) }, matrix: p0.m, layerShape: g0.shape, raster: g0.raster, fallback: g0.fallback }; }
-        var span2 = spanOf(l, c, frames), e = { id: String(l.id), name: l.name, template: String(tpl.id), templateIndex: tpl.index, from: span2.spawn, to: span2.despawn < frames ? span2.despawn : null,
-          max: Math.max(0, Math.min(2000, Math.round(read(l, N.max, 100)))), lifetime: Math.max(0, read(l, N.life, 0)), size: Math.max(0.01, read(l, N.size, 100) / 100), sizeVariation: Math.max(0, Math.min(0.95, read(l, N.sizeVar, 30) / 100)),
-          spin: Math.abs(read(l, N.spin, 90)), randomRotation: true, seed: Math.max(1, Math.round(read(l, N.seed, 1))), speedVariation: 0.15, material: material(tpl), templatePose: desc.pose, matrix: desc.matrix, track: [] };
-        if (desc.layerShape) e.layerShape = desc.layerShape; else { e.raster = desc.raster; e.fallback = desc.fallback; }
+        var span2 = spanOf(l, c, frames), e = { id: String(l.id), name: l.name, templates: [], from: span2.spawn, to: span2.despawn < frames ? span2.despawn : null,
+          max: Math.max(0, Math.min(2000, Math.round(read(l, N.max, 100)))), lifetime: Math.max(0, read(l, N.life, 0)), fade: Math.max(0, read(l, N.fade, 0)), size: Math.max(0.01, read(l, N.size, 100) / 100), sizeVariation: Math.max(0, Math.min(0.95, read(l, N.sizeVar, 30) / 100)),
+          spin: Math.abs(read(l, N.spin, 90)), randomRotation: true, seed: Math.max(1, Math.round(read(l, N.seed, 1))), speedVariation: 0.15, material: material(tpls[0]), track: [] };
+        for (var ti = 0; ti < tpls.length; ti++) {
+          var tpl = tpls[ti];
+          validate(tpl);
+          var t0 = frameTime(c, Math.max(0, Math.min(frames - 1, spanOf(tpl, c, frames).spawn))), p0 = pose(tpl, t0, rotationGuess(tpl, t0)), g0 = geometryOf(tpl, c, t0, dir, cache);
+          var item = { id: String(tpl.id), name: tpl.name, templatePose: { x: round(p0.x), y: round(p0.y), a: round(p0.a) }, matrix: p0.m, material: material(tpl), note: g0.note };
+          if (g0.shape) item.layerShape = g0.shape; else { item.raster = g0.raster; item.fallback = g0.fallback; }
+          e.templates.push(item);
+        }
         var prev2;
         for (k = 0; k < frames; k++) {
           var t2 = frameTime(c, k), q2 = pose(l, t2, prev2); prev2 = q2.a;
@@ -471,6 +534,23 @@ var Gravedad = (function () {
     for (var i = fx.numProperties; i >= 1; i--) if (fx.property(i).name.indexOf('Gravedad \u00b7 ') === 0) fx.property(i).remove();
   }
 
+  var MARK = 'Gravedad \u00b7 choque';
+  function removeMarkers(l) {
+    var m = l.property('ADBE Marker');
+    if (!m) return;
+    for (var i = m.numKeys; i >= 1; i--) { try { if (m.keyValue(i).comment === MARK) m.removeKey(i); } catch (e) {} }
+  }
+  function addMarker(l, t) { var m = l.property('ADBE Marker'); if (m) m.setValueAtTime(t, new MarkerValue(MARK)); }
+  // Desvanecimiento al final de la vida de la particula (Opacidad).
+  function fadeOut(l, p, fade, times, c) {
+    var O = l.property('ADBE Transform Group').property('ADBE Opacity');
+    if (!fade || p.to === null || p.to === undefined) return;
+    var end = times[p.to], begin = Math.max(times[p.from], end - fade), o = O.valueAtTime(begin, false);
+    if (O.expressionEnabled) O.expressionEnabled = false;
+    while (O.numKeys) O.removeKey(O.numKeys);
+    O.setValueAtTime(begin, o); O.setValueAtTime(end, 0);
+  }
+
   // result: archivo JS escrito por el panel con "Gravedad._incoming = {...}".
   function apply(arg) {
     var c = comp(), frames, times = [], k;
@@ -492,10 +572,12 @@ var Gravedad = (function () {
           var rot0 = rotationGuess(l, times[rec.from]);
           if (l.parent) l.parent = null;
           writeMotion(l, c, rec, rot0, times); written++;
+          removeMarkers(l);
+          if (res.markers && res.contacts && res.contacts[id]) for (var h = 0; h < res.contacts[id].length; h++) addMarker(l, times[res.contacts[id][h]]);
         } catch (e) { problems.push(l.name + ': ' + e.message); }
       }
       for (var i = 0; i < res.particles.length; i++) {
-        var p = res.particles[i], e2 = res.emitters[p.emitter], tpl = e2 ? layerById(c, e2.template) : null;
+        var p = res.particles[i], e2 = res.emitters[p.emitter], info = e2 ? e2.templates[p.template || 0] : null, tpl = info ? layerById(c, info.id) : null;
         if (!tpl || !p.data.length) continue;
         var dup = tpl.duplicate();
         dup.name = tpl.name + ' \u00b7 ' + (p.index < 10 ? '00' : p.index < 100 ? '0' : '') + p.index;
@@ -510,7 +592,8 @@ var Gravedad = (function () {
         if (P.dimensionsSeparated) { neutral(tr.property('ADBE Position_0'), 0); neutral(tr.property('ADBE Position_1'), 0); } else neutral(P, P.value);
         neutral(tr.property('ADBE Rotate Z'), 0);
         // Rotacion de la capa = la de la plantilla + lo que gira la particula respecto a la pose de la plantilla.
-        writeMotion(dup, c, p, rT + p.data[2] - e2.templateAngle, times);
+        writeMotion(dup, c, p, rT + p.data[2] - info.angle, times);
+        fadeOut(dup, p, e2.fade, times, c);
         try {
           if (times[p.from] > dup.inPoint) dup.inPoint = times[p.from];
           if (p.to !== null && p.to !== undefined && times[p.to] < dup.outPoint) dup.outPoint = times[p.to];
@@ -534,13 +617,14 @@ var Gravedad = (function () {
         var span = spanOf(l, c, frameCount(c)), t0 = frameTime(c, span.spawn), list = P.dimensionsSeparated ? [tr.property('ADBE Position_0'), tr.property('ADBE Position_1'), R] : [P, R], touched = false;
         for (var j = 0; j < list.length; j++) {
           var p = list[j];
-          if (p.numKeys < 2) continue;
+          if (!p.numKeys) continue;
           var rest = p.valueAtTime(t0, false), before = p.numKeys && p.keyTime(1) < t0 - 1e-4;
           removeKeysIn(p, t0, end);
           if (before) p.setValueAtTime(t0, rest); else if (!p.numKeys) p.setValue(rest);
           touched = true;
         }
         if (touched) cleared++;
+        removeMarkers(l);
       }
       var s = summary(c); s.cleared = cleared; s.removed = removed; return s;
     });
@@ -558,6 +642,7 @@ var Gravedad = (function () {
     _incoming: null,
     inspect: function (raw) { return wrap(function () { return summary(comp(true)); }, raw); },
     assign: function (raw) { return wrap(assign, raw); },
+    join: function (raw) { return wrap(join, raw); },
     world: function (raw) { return wrap(setWorld, raw); },
     force: function (raw) { return wrap(force, raw); },
     particles: function (raw) { return wrap(particles, raw); },

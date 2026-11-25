@@ -279,7 +279,8 @@
     var w = scene.world || {}, hz = Math.max(60, Math.min(960, w.quality || 240)), sub = Math.max(1, Math.ceil(hz / fps)), dt = dtFrame / sub;
     var g = (w.gravity === undefined ? 980 : w.gravity) / PPM, ga = rad(w.gravityAngle || 0);
     var world = new planck.World({ gravity: Vec2(-Math.sin(ga) * g, Math.cos(ga) * g) });
-    var drag = Math.max(0, w.airDrag || 0), warnings = [], out = { frames: frames, fps: fps, bodies: {}, particles: [], warnings: warnings };
+    var drag = Math.max(0, w.airDrag || 0), warnings = [], out = { frames: frames, fps: fps, bodies: {}, particles: [], contacts: {}, warnings: warnings };
+    var ground = world.createBody({ type: 'static' }), byId = {};
 
     // Paredes en los bordes de la composición: cajas gruesas por fuera para que nada las atraviese.
     if (w.floor || w.sides || w.ceiling) {
@@ -306,7 +307,8 @@
       var n = attach(body, item.built, b.material || {});
       if (!n) { warnings.push({ id: b.id, code: 'sin-forma' }); world.destroyBody(body); return false; }
       if (type === 'dynamic' && b.velocity) { body.setLinearVelocity(Vec2((b.velocity.x || 0) / PPM, (b.velocity.y || 0) / PPM)); body.setAngularVelocity(rad(b.velocity.a || 0)); }
-      item.body = body; item.record = { from: k, data: [] }; item.spawnFrame = k;
+      body.setUserData(b.id);
+      item.body = body; item.record = { from: k, data: [] }; item.spawnFrame = k; byId[b.id] = item;
       out.bodies[b.id] = item.record;
       live.push(item);
       return true;
@@ -314,7 +316,8 @@
 
     // Partículas: emisores que crean cuerpos dinámicos copiando la forma de una capa plantilla.
     var emitters = (scene.emitters || []).map(function (e, i) {
-      return { def: e, built: buildPieces(e.shape), random: rng(e.seed || (i + 1) * 7919), carry: 0, count: 0 };
+      var shapes = e.shapes || [e.shape];
+      return { def: e, built: shapes.map(buildPieces), random: rng(e.seed || (i + 1) * 7919), carry: 0, count: 0 };
     });
 
     function emit(k) {
@@ -324,15 +327,15 @@
         em.carry += Math.max(0, rate) / fps;
         while (em.carry >= 1 && em.count < e.max) {
           em.carry -= 1; em.count++;
-          var r = em.random, size = Math.max(0.05, (e.size || 1) * (1 + (r() * 2 - 1) * (e.sizeVariation || 0)));
+          var r = em.random, which = em.built.length > 1 ? Math.min(em.built.length - 1, Math.floor(r() * em.built.length)) : 0, size = Math.max(0.05, (e.size || 1) * (1 + (r() * 2 - 1) * (e.sizeVariation || 0)));
           var dir = rad(angle + (r() * 2 - 1) * spread / 2), along = (r() - 0.5) * width, base = rad(angle);
           var px = x - Math.sin(base) * along, py = y + Math.cos(base) * along, v = speed * (1 + (r() * 2 - 1) * (e.speedVariation || 0));
           var body = world.createBody({ type: 'dynamic', position: Vec2(px / PPM, py / PPM), angle: e.randomRotation ? r() * Math.PI * 2 : 0, linearDamping: drag, angularDamping: drag });
-          var n = attach(body, scalePieces(em.built, size), e.material || {});
+          var n = attach(body, scalePieces(em.built[which], size), (e.materials && e.materials[which]) || e.material || {});
           if (!n) { world.destroyBody(body); continue; }
           body.setLinearVelocity(Vec2(Math.cos(dir) * v / PPM, Math.sin(dir) * v / PPM));
           if (e.spin) body.setAngularVelocity(rad((r() * 2 - 1) * e.spin));
-          var rec = { emitter: e.id, index: em.count, from: k, to: null, scale: round(size, 4), data: [] };
+          var rec = { emitter: e.id, template: which, index: em.count, from: k, to: null, scale: round(size, 4), data: [] };
           out.particles.push(rec);
           live.push({ def: { id: null, type: 'dynamic', despawn: e.lifetime > 0 ? k + Math.max(1, Math.round(e.lifetime * fps)) : null }, body: body, record: rec, particle: true });
         }
@@ -370,6 +373,40 @@
       }
     }
 
+    // Uniones: se crean en cuanto existen los dos cuerpos. El punto de unión es el anclaje de cada capa (el origen del cuerpo).
+    var joints = (scene.joints || []).map(function (j) { return { def: j, made: false }; });
+    function connect(k) {
+      for (var i = 0; i < joints.length; i++) {
+        var J = joints[i], j = J.def;
+        if (J.made || J.failed) continue;
+        var A = byId[j.a], B = j.b ? byId[j.b] : null;
+        if (!A || !A.body || (j.b && (!B || !B.body))) { if (j.b && !(scene.bodies || []).some(function (b) { return b.id === j.b; })) { J.failed = true; warnings.push({ id: j.a, code: 'union-sin-capa' }); } continue; }
+        var bodyB = B ? B.body : ground, pa = A.body.getPosition(), pb = B ? B.body.getPosition() : pa;
+        if (A.body.getType() !== 'dynamic' && bodyB.getType() !== 'dynamic') { J.failed = true; warnings.push({ id: j.a, code: 'union-sin-dinamico' }); continue; }
+        var joint;
+        if (j.type === 'pivot') joint = new planck.RevoluteJoint({ collideConnected: false }, A.body, bodyB, Vec2(pa.x, pa.y));
+        else {
+          // Un muelle sin otra capa tira hacia el punto de partida; una barra rígida sin otra capa sería un pivote.
+          if (!B && j.type !== 'spring') { joint = new planck.RevoluteJoint({ collideConnected: false }, A.body, bodyB, Vec2(pa.x, pa.y)); }
+          else joint = new planck.DistanceJoint({ collideConnected: true, frequencyHz: j.type === 'spring' ? Math.max(0.05, j.frequency || 2) : 0, dampingRatio: j.type === 'spring' ? Math.max(0, j.damping === undefined ? 0.2 : j.damping) : 0 }, A.body, bodyB, Vec2(pa.x, pa.y), Vec2(pb.x, pb.y));
+        }
+        world.createJoint(joint); J.made = true;
+      }
+    }
+
+    // Choques para marcadores: el primer contacto fuerte de cada cuerpo dinámico, sin repetir en menos de 0,1 s.
+    var current = 0, lastHit = {}, gap = Math.max(2, Math.round(fps / 10)), minSpeed = (w.markerSpeed || 80) / PPM;
+    if (w.markers) world.on('post-solve', function (contact, impulse) {
+      var n = impulse.normalImpulses, peak = 0;
+      for (var q = 0; q < n.length; q++) peak = Math.max(peak, n[q] || 0);
+      [contact.getFixtureA().getBody(), contact.getFixtureB().getBody()].forEach(function (b) {
+        var id = b.getUserData();
+        if (!id || b.getType() !== 'dynamic' || peak / Math.max(1e-6, b.getMass()) < minSpeed) return;
+        if (lastHit[id] !== undefined && current - lastHit[id] < gap) return;
+        lastHit[id] = current; (out.contacts[id] = out.contacts[id] || []).push(current);
+      });
+    });
+
     var k = 0;
     function step(count) {
       var end = Math.min(frames, k + (count || frames));
@@ -378,6 +415,7 @@
           var it = pending[i];
           if (!it.body && !it.failed && (it.def.spawn || 0) <= k && (it.def.despawn === undefined || it.def.despawn === null || k < it.def.despawn)) { if (!spawn(it, k)) it.failed = true; }
         }
+        connect(k);
         emit(k);
         // Bajas: capas que terminan o partículas que agotan su vida.
         for (i = live.length - 1; i >= 0; i--) {
@@ -389,15 +427,15 @@
           var b = live[i].body, pos = b.getPosition();
           live[i].record.data.push(round(pos.x * PPM, 3), round(pos.y * PPM, 3), round(b.getAngle() * 180 / Math.PI, 3));
         }
-        if (k === frames - 1) break;
+        if (k === frames - 1) { k = frames; break; }
         drive(k);
+        current = k + 1;
         for (var s = 0; s < sub; s++) { applyForces(k); world.step(dt, 10, 8); }
         for (i = 0; i < live.length; i++) {
           var q = live[i].body.getPosition();
           if (!isFinite(q.x) || !isFinite(q.y)) throw Error('La simulación se volvió inestable. Revisa tamaños y fuerzas extremas.');
         }
       }
-      if (k >= frames - 1) k = frames;
       return { done: k >= frames, frame: Math.min(k, frames), frames: frames };
     }
 

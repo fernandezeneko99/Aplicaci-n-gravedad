@@ -98,6 +98,9 @@ class Layer {
     prop(tr, 'ADBE Scale', 'Scale', [100, 100]); prop(tr, 'ADBE Rotate Z', 'Rotation', 0); prop(tr, 'ADBE Opacity', 'Opacity', 100);
     pos.ownerTime = () => comp.time;
     root.add(new Group('ADBE Effect Parade', 'Effects', root));
+    const marker = prop(root, 'ADBE Marker', 'Marker', null);
+    marker.setValueAtTime = function (t, v) { const i = this.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6); if (i >= 0) this.keys[i].v = v; else { this.keys.push({ t, v }); this.keys.sort((a, b) => a.t - b.t); } };
+    marker.keyValue = function (i) { return this.keys[i - 1].v; };
     root.add(new Group('ADBE Mask Parade', 'Masks', root));
     for (const p of tr._children) p.ownerTime = () => comp.time;
   }
@@ -244,7 +247,8 @@ function createHost(hostDir) {
   class File { constructor(p) { this.fsName = path.resolve(String(p)); } get exists() { return fs.existsSync(this.fsName); } get parent() { return new Folder(path.dirname(this.fsName)); } }
   class Folder { constructor(p) { this.fsName = path.resolve(String(p)); } get exists() { return fs.existsSync(this.fsName); } create() { fs.mkdirSync(this.fsName, { recursive: true }); return true; } }
   Folder.temp = new Folder(require('os').tmpdir());
-  const ctx = { app, CompItem, FootageItem, FolderItem, AVLayer, ShapeLayer, TextLayer, SolidSource, MaskMode, Shape, File, Folder, ViewerType: { VIEWER_COMPOSITION: 1 }, PropertyType: { PROPERTY: 'PROPERTY' }, Math, Date, Error, String, Number, Array, Object, RegExp, isFinite, parseFloat };
+  class MarkerValue { constructor(comment) { this.comment = comment; } }
+  const ctx = { MarkerValue, app, CompItem, FootageItem, FolderItem, AVLayer, ShapeLayer, TextLayer, SolidSource, MaskMode, Shape, File, Folder, ViewerType: { VIEWER_COMPOSITION: 1 }, PropertyType: { PROPERTY: 'PROPERTY' }, Math, Date, Error, String, Number, Array, Object, RegExp, isFinite, parseFloat };
   ctx.$ = { fileName: '', evalFile(f) { const file = f.fsName || f; const code = fs.readFileSync(file, 'utf8'); ctx.$.fileName = file; vm.runInContext(code, ctx, { filename: file }); } };
   vm.createContext(ctx);
   // json2 solo se carga si falta JSON: en Node existe, así que se fuerza para probar el mismo camino que en After.

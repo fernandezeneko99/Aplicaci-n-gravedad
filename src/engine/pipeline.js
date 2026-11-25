@@ -11,7 +11,8 @@
 
   // Resuelve los renders de alfa: cada cuerpo con raster pasa a tener layerShape. Un fallo cae a la caja de la capa.
   async function resolveRasters(host, io, warnings) {
-    var items = host.bodies.concat(host.emitters || []), cache = {};
+    var items = host.bodies.slice(), cache = {};
+    (host.emitters || []).forEach(function (e) { items = items.concat(e.templates); });
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       if (it.layerShape || !it.raster) continue;
@@ -31,6 +32,8 @@
   function describeWarning(w, names) {
     var who = names[w.id] || 'Una capa';
     if (w.code === 'sin-forma') return who + ': su contorno es demasiado pequeño para colisionar; se ignora.';
+    if (w.code === 'union-sin-capa') return who + ': la capa a la que está unida no es un cuerpo; se ignora la unión.';
+    if (w.code === 'union-sin-dinamico') return who + ': una unión necesita al menos un cuerpo dinámico.';
     if (w.code === 'contorno-cruzado') return who + ': el trazado se cruza consigo mismo; se usa su contorno convexo.';
     return who + ': ' + w.code;
   }
@@ -53,7 +56,7 @@
     } finally {
       try { await io.call('cleanup', {}); } catch (ignore) {}
     }
-    var scene = Scene.build(host), run = Sim.create(scene), state, chunk = Math.max(1, Math.round(4000 / Math.max(1, scene.bodies.length + 1)));
+    var scene = Scene.build(host), run = Sim.create(scene), state, load = scene.bodies.length + scene.emitters.reduce(function (n, e) { return n + (e.max || 0); }, 0) + 1, chunk = Math.max(1, Math.round(4000 / load));
     do {
       state = run.step(chunk);
       io.progress(0.05 + 0.85 * state.frame / state.frames, 'Simulando · fotograma ' + state.frame + ' de ' + state.frames);

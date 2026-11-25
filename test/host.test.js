@@ -58,13 +58,13 @@ test('asignar crea controles nativos y el resumen los cuenta', () => {
   assert.strictEqual(s.dynamic, 1); assert.strictEqual(s.fixed, 1);
   const fx = a.property('ADBE Effect Parade');
   const names = fx._children.map((e) => e.name);
-  assert.deepStrictEqual(names, ['Gravedad · Tipo', 'Gravedad · Forma', 'Gravedad · Densidad', 'Gravedad · Fricción', 'Gravedad · Rebote']);
+  assert.deepStrictEqual(names, ['Gravedad · Tipo', 'Gravedad · Forma', 'Gravedad · Densidad', 'Gravedad · Fricción', 'Gravedad · Rebote', 'Gravedad · Impulso', 'Gravedad · Dirección del impulso', 'Gravedad · Giro inicial']);
   assert.deepStrictEqual(plain(fx.property(1).property(1).items), ['Dinámico', 'Fijo', 'Desactivado']);
   assert.strictEqual(fx.property(1).property(1).value, 1);
   assert.strictEqual(b.property('ADBE Effect Parade').property(1).property(1).value, 2);
   // reasignar no duplica controles y cambia el tipo
   select(c, [a]); ok(h.call('assign', { mode: 'fixed' }));
-  assert.strictEqual(a.property('ADBE Effect Parade').numProperties, 5);
+  assert.strictEqual(a.property('ADBE Effect Parade').numProperties, 8);
   assert.strictEqual(ok(h.call('inspect')).fixed, 2);
   assert.deepStrictEqual(MockAE.stats.undoGroups.slice(-1), ['Gravedad · Asignar']);
 });
@@ -100,10 +100,10 @@ test('simulación completa: la bola cae sobre la plataforma y se escriben claves
   assert.deepStrictEqual(out.warnings, []);
   assert.strictEqual(out.scene.bodies.find((b) => b.id === String(ball.id)).shape.kind, 'circle');
   const P = ball.transform.position;
-  assert.strictEqual(P.numKeys, 100, 'una clave por fotograma');
-  assert.strictEqual(ball.transform.rotation.numKeys, 100);
+  assert.ok(P.numKeys > 20 && P.numKeys <= 100, 'claves por fotograma hasta que reposa: ' + P.numKeys);
+  P.keys.forEach((k, i) => assert.ok(Math.abs(k.t - i / 25) < 1e-6, 'una clave en cada fotograma'));
   assert.deepStrictEqual(plain(P.keys[0].v), [640, 100]);
-  const end = P.keys[99].v;
+  const end = P.keys.slice(-1)[0].v;
   assert.ok(Math.abs(end[1] - (480 - 50)) < 2, 'reposa sobre la plataforma: ' + end);
   assert.strictEqual(floor.transform.position.numKeys, 0, 'el fijo no se toca');
   assert.strictEqual(out.summary.written, 1);
@@ -173,7 +173,7 @@ test('fijo animado (cinemático) sigue su animación y empuja', async () => {
   assert.strictEqual(kin.type, 'kinematic');
   assert.strictEqual(kin.track.length, 100);
   assert.strictEqual(pusher.transform.position.numKeys, 2, 'la animación del fijo no cambia');
-  assert.ok(box.transform.position.keys[99].v[0] > 900, 'empujada: ' + box.transform.position.keys[99].v);
+  assert.ok(box.transform.position.keys.slice(-1)[0].v[0] > 900, 'empujada: ' + box.transform.position.keys.slice(-1)[0].v);
 });
 
 test('dimensiones separadas: se escriben X e Y', async () => {
@@ -182,8 +182,8 @@ test('dimensiones separadas: se escriben X e Y', async () => {
   const tr = box.property('ADBE Transform Group'); tr.property('ADBE Position').dimensionsSeparated = true; tr.property('ADBE Position_0').setValue(300); tr.property('ADBE Position_1').setValue(100);
   select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
   await Pipeline.simulate(io(h));
-  assert.strictEqual(tr.property('ADBE Position_0').numKeys, 100);
-  assert.ok(tr.property('ADBE Position_1').keys[99].v > 600);
+  assert.strictEqual(tr.property('ADBE Position_0').numKeys, tr.property('ADBE Position_1').numKeys);
+  assert.ok(tr.property('ADBE Position_1').keys.slice(-1)[0].v > 600);
 });
 
 test('alfa de metraje: se renderiza, se traza y se borra la composición temporal', async () => {
@@ -201,7 +201,7 @@ test('alfa de metraje: se renderiza, se traza y se borra la composición tempora
   assert.ok(Math.min(...ys) > -85 && Math.min(...ys) < -75, 'vértice superior ~ -80: ' + Math.min(...ys));
   assert.ok(Math.max(...xs) > 75 && Math.max(...xs) < 85);
   // Reposa sobre el suelo (base del triángulo a 80 px por debajo del ancla)
-  const last = tri.transform.position.keys[99].v;
+  const last = tri.transform.position.keys.slice(-1)[0].v;
   assert.ok(Math.abs(last[1] - (720 - 80)) < 4, String(last));
 });
 
@@ -213,8 +213,8 @@ test('metraje opaco y sólidos usan su rectángulo sin renderizar', async () => 
   select(c, [solid, photo]); ok(h.call('assign', { mode: 'dynamic' }));
   const out = await Pipeline.simulate(io(h));
   assert.strictEqual(MockAE.stats.pngs, 0);
-  assert.ok(Math.abs(solid.transform.position.keys[99].v[1] - (720 - 25)) < 0.5);
-  assert.ok(Math.abs(photo.transform.position.keys[99].v[1] - (720 - 40)) < 0.6, String(photo.transform.position.keys[99].v));
+  assert.ok(Math.abs(solid.transform.position.keys.slice(-1)[0].v[1] - (720 - 25)) < 0.5);
+  assert.ok(Math.abs(photo.transform.position.keys.slice(-1)[0].v[1] - (720 - 40)) < 0.6, String(photo.transform.position.keys.slice(-1)[0].v));
   assert.strictEqual(out.warnings.length, 0);
 });
 
@@ -226,7 +226,7 @@ test('trazo sin relleno = recipiente hueco que retiene objetos', async () => {
   select(c, [ball]); ok(h.call('assign', { mode: 'dynamic' }));
   const out = await Pipeline.simulate(io(h));
   assert.strictEqual(out.scene.bodies.find((b) => b.id === String(cup.id)).shape.kind, 'stroke');
-  const end = ball.transform.position.keys[99].v;
+  const end = ball.transform.position.keys.slice(-1)[0].v;
   assert.ok(Math.abs(end[1] - (650 - 6 - 30)) < 2, 'dentro del vaso: ' + end);
 });
 
@@ -237,7 +237,7 @@ test('forma con modificadores (repetidor): se usa el alfa renderizado', async ()
   select(c, [l]); ok(h.call('assign', { mode: 'dynamic' }));
   await Pipeline.simulate(io(h));
   assert.strictEqual(MockAE.stats.pngs, 1);
-  assert.ok(Math.abs(l.transform.position.keys[99].v[1] - 695) < 3, String(l.transform.position.keys[99].v));
+  assert.ok(Math.abs(l.transform.position.keys.slice(-1)[0].v[1] - 695) < 3, String(l.transform.position.keys.slice(-1)[0].v));
 });
 
 test('forma forzada a caja o círculo', async () => {
@@ -270,7 +270,7 @@ test('fuerza: ventilador creado con guía y controles; empuja a los cuerpos', as
   const box = shape(c, 'Caja', 'rect', [40, 40], [200, 360]);
   select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
   await Pipeline.simulate(io(h));
-  assert.ok(box.transform.position.keys[99].v[0] > 1000);
+  assert.ok(box.transform.position.keys.slice(-1)[0].v[0] > 1000);
 });
 
 test('partículas: crea emisor y plantilla, genera capas y las reemplaza al re-simular', async () => {
@@ -300,7 +300,7 @@ test('capa que entra tarde aparece en su punto de entrada', async () => {
   await Pipeline.simulate(io(h));
   const P = box.transform.position;
   assert.strictEqual(P.keys[0].t, 2); assert.deepStrictEqual(plain(P.keys[0].v), [300, 100]);
-  assert.strictEqual(P.numKeys, 50);
+  assert.ok(P.numKeys <= 50 && P.numKeys > 20);
 });
 
 test('escena sin cuerpos: mensaje que explica qué hacer', async () => {
@@ -315,4 +315,92 @@ test('el archivo de resultado se lee con evalFile y una composición distinta se
   const f = path.join(os.tmpdir(), 'gravedad-otro.jsx');
   fs.writeFileSync(f, 'Gravedad._incoming = {"compId": 999, "frames": 1, "bodies": {}, "particles": [], "emitters": {}};');
   assert.match(h.call('apply', { file: f }).error, /no corresponde/);
+});
+
+test('impulso inicial desde los controles (0° = arriba)', async () => {
+  const { h, c } = setup();
+  ok(h.call('world', { environment: 'space', walls: false }));
+  const box = shape(c, 'Lanzada', 'rect', [40, 40], [300, 300]);
+  select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
+  const fx = box.property('ADBE Effect Parade');
+  fx.property('Gravedad · Impulso').property(1)._value = 250; fx.property('Gravedad · Dirección del impulso').property(1)._value = 90; fx.property('Gravedad · Giro inicial').property(1)._value = 45;
+  await Pipeline.simulate(io(h));
+  const P = box.transform.position.keys, R = box.transform.rotation.keys;
+  assert.ok(Math.abs(P[25].v[0] - 550) < 1 && Math.abs(P[25].v[1] - 300) < 0.5, 'a 250 px/s a la derecha: ' + P[25].v);
+  assert.ok(Math.abs(R[25].v - 45) < 0.5, 'gira 45°/s: ' + R[25].v);
+});
+
+test('unir: una capa queda colgada de su anclaje (péndulo); dos capas, barra entre anclajes', async () => {
+  const { h, c } = setup();
+  const bob = shape(c, 'Péndulo', 'rect', [30, 30], [400, 100]);
+  bob.property('ADBE Transform Group').property('ADBE Anchor Point')._value = [-150, 0];
+  select(c, [bob]);
+  const s = ok(h.call('join', { type: 'pivot' }));
+  assert.strictEqual(s.joined, 1); assert.strictEqual(s.dynamic, 1);
+  const out = await Pipeline.simulate(io(h));
+  assert.deepStrictEqual(out.scene.joints, [{ a: String(bob.id), b: null, type: 'pivot', frequency: 2, damping: 0.2 }]);
+  const keys = bob.transform.position.keys;
+  keys.forEach((k) => assert.ok(Math.hypot(k.v[0] - 400, k.v[1] - 100) < 1, 'el pivote no se mueve: ' + k.v));
+  assert.ok(Math.max(...bob.transform.rotation.keys.map((k) => k.v)) > 60, 'oscila');
+
+  const hook = shape(c, 'Gancho', 'rect', [20, 20], [900, 100]), weight = shape(c, 'Peso', 'ellipse', [40, 40], [900, 300]);
+  select(c, [weight, hook]);
+  ok(h.call('join', { type: 'spring' }));
+  weight.property('ADBE Effect Parade').property('Gravedad · Rigidez del muelle').property(1)._value = 0.5;
+  assert.strictEqual(hook.property('ADBE Effect Parade').property(1).property(1).value, 2, 'la segunda capa pasa a Fijo');
+  await Pipeline.simulate(io(h));
+  assert.ok(weight.transform.position.keys.some((k) => k.v[1] > 330), 'el muelle se estira');
+  assert.strictEqual(hook.transform.position.numKeys, 0);
+});
+
+test('marcadores al chocar se escriben y se reemplazan', async () => {
+  const { h, c } = setup();
+  ok(h.call('world', { markers: true }));
+  const box = shape(c, 'Caja', 'rect', [60, 60], [300, 300]);
+  select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
+  box.property('ADBE Effect Parade').property('Gravedad · Rebote').property(1)._value = 0;
+  await Pipeline.simulate(io(h));
+  const M = box.property('ADBE Marker');
+  assert.strictEqual(M.numKeys, 1);
+  assert.strictEqual(M.keys[0].v.comment, 'Gravedad · choque');
+  await Pipeline.simulate(io(h));
+  assert.strictEqual(M.numKeys, 1, 'no se duplican');
+  ok(h.call('clear'));
+  assert.strictEqual(M.numKeys, 0);
+});
+
+test('partículas con varias formas seleccionadas y desvanecimiento', async () => {
+  const { h, c } = setup({ duration: 2 });
+  const a = shape(c, 'Confeti A', 'rect', [20, 8], [100, 100]), b = shape(c, 'Confeti B', 'ellipse', [14, 14], [140, 100]);
+  select(c, [a, b]);
+  ok(h.call('particles'));
+  const em = c._layers.find((l) => l.comment === 'gravedad:emisor'), fx = em.property('ADBE Effect Parade');
+  assert.ok(fx.property('Gravedad · Capa de partícula 2'));
+  assert.ok(!a.enabled && !b.enabled);
+  fx.property('Gravedad · Máximo').property(1)._value = 30; fx.property('Gravedad · Ritmo').property(1)._value = 60; fx.property('Gravedad · Vida').property(1)._value = 1;
+  await Pipeline.simulate(io(h));
+  const parts = c._layers.filter((l) => String(l.comment).indexOf('gravedad:particula:') === 0);
+  assert.strictEqual(parts.length, 30);
+  assert.ok(parts.some((p) => p.name.indexOf('Confeti A') === 0) && parts.some((p) => p.name.indexOf('Confeti B') === 0));
+  const O = parts[0].property('ADBE Transform Group').property('ADBE Opacity');
+  assert.strictEqual(O.numKeys, 2); assert.strictEqual(O.keys[1].v, 0);
+  assert.ok(Math.abs(O.keys[1].t - parts[0].outPoint) < 1e-6);
+});
+
+test('claves recortadas: un cuerpo en reposo no recibe claves repetidas', async () => {
+  const { h, c } = setup({ duration: 8 });
+  const box = shape(c, 'Caja', 'rect', [60, 60], [300, 600]);
+  select(c, [box]); ok(h.call('assign', { mode: 'dynamic' }));
+  await Pipeline.simulate(io(h));
+  assert.ok(box.transform.position.numKeys < 60, 'se detienen al reposar: ' + box.transform.position.numKeys);
+});
+
+test('unir: la unión va en la capa que se mueve aunque se seleccione después', () => {
+  const { h, c } = setup();
+  const hook = shape(c, 'Gancho', 'rect', [20, 20], [600, 100]); select(c, [hook]); ok(h.call('assign', { mode: 'fixed' }));
+  const bob = shape(c, 'Bola', 'ellipse', [40, 40], [600, 300]);
+  c._layers.splice(c._layers.indexOf(hook), 1); c._layers.unshift(hook); // el gancho queda primero
+  select(c, [hook, bob]); ok(h.call('join', { type: 'distance' }));
+  assert.ok(bob.property('ADBE Effect Parade').property('Gravedad · Unión'));
+  assert.ok(!hook.property('ADBE Effect Parade').property('Gravedad · Unión'));
 });

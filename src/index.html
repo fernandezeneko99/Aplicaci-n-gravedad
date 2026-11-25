@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gravedad</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+ <header class="top">
+  <button id="apple" class="logo" title="Gravedad · clic derecho para recargar el panel"><img src="assets/logo.svg" alt=""><span>Gravedad</span></button>
+  <section class="world" aria-label="Mundo">
+   <label class="switch" data-hint="Tierra: gravedad terrestre. Espacio: sin gravedad; las fuerzas siguen activas."><input id="environment" type="checkbox" role="switch" aria-label="Espacio sin gravedad"><span class="side off"><img src="assets/earth.svg" alt=""><span>Tierra</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/space.svg" alt=""><span>Espacio</span></span></label>
+   <label class="switch" data-hint="Con paredes, el suelo y los lados de la composición contienen los objetos."><input id="walls" type="checkbox" role="switch" aria-label="Bordes de la composición como paredes" checked><span class="side off"><img src="assets/open.svg" alt=""><span>Sin paredes</span></span><span class="track"><span></span></span><span class="side on"><img src="assets/walls.svg" alt=""><span>Paredes</span></span></label>
+  </section>
+ </header>
+
+ <div class="cards">
+  <button id="dynamic" data-hint="Selecciona capas: caerán y chocarán. El contorno se detecta solo (formas, texto, PNG con alfa, precomposiciones)."><img class="art" src="assets/dynamic.svg" alt=""><strong>Dinámico</strong></button>
+  <button id="fixed" data-hint="Selecciona capas que no caen: suelos, rampas, recipientes. Si están animadas, empujan siguiendo su animación."><img class="art" src="assets/fixed.svg" alt=""><strong>Fijo</strong></button>
+  <button id="force" data-hint="Crea un ventilador: gira la flecha para cambiar la dirección. Intensidad y alcance en Controles de efectos. Alt+clic: atractor."><img class="art" src="assets/force.svg" alt=""><strong>Fuerza</strong></button>
+  <button id="particles" data-hint="Crea un emisor. Si seleccionas una capa, se usa como forma de las partículas. Ritmo, cantidad y tamaño en Controles de efectos."><img class="art" src="assets/particles.svg" alt=""><strong>Partículas</strong></button>
+ </div>
+
+ <button id="simulate" data-hint="Calcula la física en el área de trabajo y la escribe como fotogramas clave de Posición y Rotación. Ctrl+Z la deshace."><img class="art" src="assets/bake.svg" alt=""><span class="bake-text"><strong>Simular <span id="simState"></span></strong><span class="meter"><span id="progress"></span></span></span></button>
+
+ <div class="row extras">
+  <div class="join" data-hint="Una capa: queda colgada de su punto de anclaje. Dos capas: se unen por sus anclajes. La unión vive en la primera capa seleccionada."><button id="join" class="small">Unir capas</button><select id="jointType" aria-label="Tipo de unión"><option value="pivot">Pivote</option><option value="distance">Barra</option><option value="spring">Muelle</option></select></div>
+  <label class="check small" data-hint="Añade un marcador «Gravedad · choque» en cada golpe fuerte: útil para sincronizar sonidos."><input id="markers" type="checkbox"> Marcadores al chocar</label>
+ </div>
+
+ <div class="row">
+  <button id="clear" class="small" data-hint="Quita las claves de la simulación y las partículas generadas; las capas vuelven a su pose de partida.">Borrar simulación</button>
+  <button id="preview" class="small" aria-pressed="false" data-hint="Muestra en el panel la última simulación.">Vista previa</button>
+ </div>
+
+ <figure id="viewer" hidden>
+  <canvas id="canvas" width="640" height="360" aria-label="Vista previa de la simulación"></canvas>
+  <div class="scrub"><button id="play" class="small" aria-label="Reproducir">▶</button><input id="frame" type="range" min="0" max="0" value="0" aria-label="Fotograma"><output id="frameLabel">0</output></div>
+ </figure>
+
+ <p id="scene" class="scene"></p>
+ <p id="status" role="status">Abre una composición y selecciona capas para empezar.</p>
+ <ul id="warnings" class="warnings"></ul>
+ <small class="version">Gravedad · <span id="version"></span></small>
+</main>
+<script>
+ // CEP con Node expone module/exports: se ocultan para que los motores se registren como globales del panel.
+ window.__cepModule = { module: window.module, exports: window.exports }; window.module = undefined; window.exports = undefined;
+</script>
+<script src="engine/planck.min.js"></script>
+<script src="engine/sim.js"></script>
+<script src="engine/scene.js"></script>
+<script src="engine/pipeline.js"></script>
+<script>window.module = window.__cepModule.module; window.exports = window.__cepModule.exports;</script>
+<script src="app.js"></script>
+</body>
+</html>
